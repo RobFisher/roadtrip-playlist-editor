@@ -31,6 +31,15 @@ Reference:
 
 Two options are listed. Option A is easiest to start; Option B is more controlled.
 
+### Important: CLI Auth Model Depends on Account Setup
+
+This is a common source of confusion:
+
+- If your account uses **IAM Identity Center (SSO)**, use `aws configure sso` and `aws sso login` (or `aws login` on newer CLI flows).
+- If you are using a plain **IAM user** (like `roadtrip-deployer`) without SSO, use an **access key** with `aws configure`.
+
+So for a non-SSO home account, `aws login` is typically not the right path.
+
 ### Option A (Recommended for Milestone 1 simplicity)
 
 Create an IAM user (or IAM Identity Center user) for deployments:
@@ -42,6 +51,13 @@ Create an IAM user (or IAM Identity Center user) for deployments:
 5. Do all `cdk` and `aws` commands as this user, not root.
 
 After first successful deploy, replace `AdministratorAccess` with a least-privilege policy.
+
+Example CLI setup for IAM user auth:
+
+```bash
+aws configure --profile roadtrip-deployer
+aws sts get-caller-identity --profile roadtrip-deployer
+```
 
 ### Option B (Role-based deploy flow)
 
