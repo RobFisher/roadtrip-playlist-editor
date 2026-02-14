@@ -13,10 +13,12 @@ TypeScript app with lint/test/run scripts.
    ```bash
    nix develop
    ```
-2. Install npm dependencies:
+2. Install npm dependencies without upgrading package versions:
    ```bash
-   npm run setup
+   npm ci
    ```
+
+Dependency policy: avoid upgrading npm dependencies unless explicitly requested.
 
 ## Daily Commands
 
