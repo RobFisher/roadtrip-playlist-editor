@@ -34,26 +34,92 @@ export function applySongDrop(
   payload: DragPayload,
   destinationPlaylistId: string
 ): Playlist[] {
-  return playlists.map((playlist) => {
-    if (playlist.id === destinationPlaylistId) {
-      if (playlist.songIds.includes(payload.songId)) {
-        return playlist;
-      }
+  const destinationPlaylist = playlists.find(
+    (playlist) => playlist.id === destinationPlaylistId
+  );
+  const destinationIndex = destinationPlaylist
+    ? destinationPlaylist.songIds.length
+    : 0;
 
+  return applySongDropAtIndex(
+    playlists,
+    payload,
+    destinationPlaylistId,
+    destinationIndex
+  );
+}
+
+export function applySongDropAtIndex(
+  playlists: Playlist[],
+  payload: DragPayload,
+  destinationPlaylistId: string,
+  destinationIndex: number
+): Playlist[] {
+  const sourcePlaylist = playlists.find(
+    (playlist) => playlist.id === payload.sourcePlaylistId
+  );
+  const destinationPlaylist = playlists.find(
+    (playlist) => playlist.id === destinationPlaylistId
+  );
+
+  if (!sourcePlaylist || !destinationPlaylist) {
+    return playlists;
+  }
+
+  const sourceIndex = sourcePlaylist.songIds.indexOf(payload.songId);
+  if (sourceIndex < 0) {
+    return playlists;
+  }
+
+  const samePlaylist = payload.sourcePlaylistId === destinationPlaylistId;
+  const destinationHasSong = destinationPlaylist.songIds.includes(payload.songId);
+
+  if (samePlaylist) {
+    if (payload.mode === "copy") {
+      return playlists;
+    }
+
+    const reordered = [...sourcePlaylist.songIds];
+    reordered.splice(sourceIndex, 1);
+    const boundedIndex = Math.max(0, Math.min(destinationIndex, reordered.length));
+    reordered.splice(boundedIndex, 0, payload.songId);
+
+    return playlists.map((playlist) =>
+      playlist.id === sourcePlaylist.id
+        ? {
+            ...playlist,
+            songIds: reordered
+          }
+        : playlist
+    );
+  }
+
+  let destinationSongs = [...destinationPlaylist.songIds];
+  if (!destinationHasSong) {
+    const boundedIndex = Math.max(
+      0,
+      Math.min(destinationIndex, destinationSongs.length)
+    );
+    destinationSongs.splice(boundedIndex, 0, payload.songId);
+  }
+
+  const shouldRemoveFromSource = payload.mode === "move";
+  const sourceSongs = shouldRemoveFromSource
+    ? sourcePlaylist.songIds.filter((songId) => songId !== payload.songId)
+    : sourcePlaylist.songIds;
+
+  return playlists.map((playlist) => {
+    if (playlist.id === sourcePlaylist.id) {
       return {
         ...playlist,
-        songIds: [...playlist.songIds, payload.songId]
+        songIds: sourceSongs
       };
     }
 
-    if (
-      payload.mode === "move" &&
-      playlist.id === payload.sourcePlaylistId &&
-      payload.sourcePlaylistId !== destinationPlaylistId
-    ) {
+    if (playlist.id === destinationPlaylist.id) {
       return {
         ...playlist,
-        songIds: playlist.songIds.filter((songId) => songId !== payload.songId)
+        songIds: destinationSongs
       };
     }
 

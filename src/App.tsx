@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import "./app.css";
 import {
-  applySongDrop,
+  applySongDropAtIndex,
   countSongMemberships,
   seedProjectData,
   type DragPayload,
@@ -14,6 +14,10 @@ export function App() {
   const [playlists, setPlaylists] = useState<Playlist[]>(seedProjectData.playlists);
   const [panePlaylistIds, setPanePlaylistIds] = useState<string[]>(initialPanePlaylistIds);
   const [dragModeLabel, setDragModeLabel] = useState<"copy" | "move">("copy");
+  const [dropTarget, setDropTarget] = useState<{
+    playlistId: string;
+    index: number;
+  } | null>(null);
 
   const songsById = useMemo(() => {
     return new Map(seedProjectData.songs.map((song) => [song.id, song]));
@@ -57,7 +61,8 @@ export function App() {
 
   function onPaneDrop(
     event: React.DragEvent<HTMLElement>,
-    destinationPlaylistId: string
+    destinationPlaylistId: string,
+    destinationIndex: number
   ): void {
     event.preventDefault();
     const payloadRaw = event.dataTransfer.getData("application/json");
@@ -66,7 +71,19 @@ export function App() {
     }
 
     const payload = JSON.parse(payloadRaw) as DragPayload;
-    setPlaylists((prev) => applySongDrop(prev, payload, destinationPlaylistId));
+    setPlaylists((prev) =>
+      applySongDropAtIndex(prev, payload, destinationPlaylistId, destinationIndex)
+    );
+    setDropTarget(null);
+  }
+
+  function onDropSlotDragOver(
+    event: React.DragEvent<HTMLElement>,
+    playlistId: string,
+    destinationIndex: number
+  ): void {
+    event.preventDefault();
+    setDropTarget({ playlistId, index: destinationIndex });
   }
 
   return (
@@ -96,12 +113,7 @@ export function App() {
           }
 
           return (
-            <article
-              className="pane"
-              key={`${paneIndex}-${panePlaylistId}`}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => onPaneDrop(event, playlist.id)}
-            >
+            <article className="pane" key={`${paneIndex}-${panePlaylistId}`}>
               <header className="pane-header">
                 <select
                   value={playlist.id}
@@ -124,7 +136,7 @@ export function App() {
               </header>
 
               <ul className="song-list">
-                {playlist.songIds.map((songId) => {
+                {playlist.songIds.map((songId, songIndex) => {
                   const song = songsById.get(songId);
                   if (!song) {
                     return null;
@@ -132,24 +144,56 @@ export function App() {
                   const membershipCount = countSongMemberships(playlists, song.id);
 
                   return (
-                    <li
-                      className="song-card"
-                      key={`${playlist.id}-${song.id}`}
-                      draggable
-                      onDragStart={(event) => onSongDragStart(event, playlist.id, song.id)}
-                    >
-                      <img src={song.artworkUrl} alt="" />
-                      <div className="song-copy">
-                        <strong>{song.title}</strong>
-                        <span>{song.artist}</span>
-                        <small>
-                          in {membershipCount} playlist
-                          {membershipCount === 1 ? "" : "s"}
-                        </small>
-                      </div>
+                    <li className="song-row" key={`${playlist.id}-${song.id}`}>
+                      <div
+                        className={`drop-slot ${
+                          dropTarget?.playlistId === playlist.id &&
+                          dropTarget.index === songIndex
+                            ? "drop-slot-active"
+                            : ""
+                        }`}
+                        onDragOver={(event) =>
+                          onDropSlotDragOver(event, playlist.id, songIndex)
+                        }
+                        onDrop={(event) => onPaneDrop(event, playlist.id, songIndex)}
+                      />
+                      <article
+                        className="song-card"
+                        draggable
+                        onDragStart={(event) =>
+                          onSongDragStart(event, playlist.id, song.id)
+                        }
+                        onDragEnd={() => setDropTarget(null)}
+                      >
+                        <img src={song.artworkUrl} alt="" />
+                        <div className="song-copy">
+                          <strong>{song.title}</strong>
+                          <span>{song.artist}</span>
+                          <small>
+                            in {membershipCount} playlist
+                            {membershipCount === 1 ? "" : "s"}
+                          </small>
+                        </div>
+                      </article>
                     </li>
                   );
                 })}
+                <li className="song-row">
+                  <div
+                    className={`drop-slot ${
+                      dropTarget?.playlistId === playlist.id &&
+                      dropTarget.index === playlist.songIds.length
+                        ? "drop-slot-active"
+                        : ""
+                    }`}
+                    onDragOver={(event) =>
+                      onDropSlotDragOver(event, playlist.id, playlist.songIds.length)
+                    }
+                    onDrop={(event) =>
+                      onPaneDrop(event, playlist.id, playlist.songIds.length)
+                    }
+                  />
+                </li>
               </ul>
             </article>
           );

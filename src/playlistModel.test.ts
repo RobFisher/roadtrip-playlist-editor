@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applySongDrop, type Playlist } from "./playlistModel.js";
+import { applySongDrop, applySongDropAtIndex, type Playlist } from "./playlistModel.js";
 
 const basePlaylists: Playlist[] = [
   { id: "p1", name: "One", songIds: ["s1", "s2"] },
@@ -37,4 +37,26 @@ test("drop does not duplicate song in destination", () => {
   );
 
   assert.deepEqual(updated[1]?.songIds, ["s3"]);
+});
+
+test("move within same playlist reorders by destination index", () => {
+  const updated = applySongDropAtIndex(
+    basePlaylists,
+    { songId: "s1", sourcePlaylistId: "p1", mode: "move" },
+    "p1",
+    2
+  );
+
+  assert.deepEqual(updated[0]?.songIds, ["s2", "s1"]);
+});
+
+test("copy inserts song at specific position in destination", () => {
+  const updated = applySongDropAtIndex(
+    basePlaylists,
+    { songId: "s2", sourcePlaylistId: "p1", mode: "copy" },
+    "p2",
+    0
+  );
+
+  assert.deepEqual(updated[1]?.songIds, ["s2", "s3"]);
 });
