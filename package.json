@@ -9,14 +9,30 @@
   },
   "scripts": {
     "setup": "npm ci",
-    "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
-    "lint": "tsc --noEmit",
-    "test": "tsx --test src/**/*.test.ts"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "vite preview",
+    "lint": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit",
+    "test": "tsx --test src/**/*.test.ts",
+    "cdk:synth": "npm run build && cdk synth",
+    "deploy:dev": "npm run build && cdk deploy RoadtripPlaylistEditor-dev --require-approval never",
+    "destroy:dev": "cdk destroy RoadtripPlaylistEditor-dev --force"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "2.181.1",
+    "constructs": "10.4.2",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
   },
   "devDependencies": {
+    "@types/react": "19.0.8",
+    "@types/react-dom": "19.0.3",
+    "@vitejs/plugin-react": "4.4.1",
     "@types/node": "^22.13.4",
+    "aws-cdk": "2.1010.0",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vite": "6.1.0"
   }
 }

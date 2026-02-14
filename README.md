@@ -1,7 +1,7 @@
 # Rob's Road-trip Playlist Editor
 
-Milestone 0 bootstrap for the project: Nix-based CLI environment plus a minimal
-TypeScript app with lint/test/run scripts.
+Milestones 0-1 bootstrap for the project: Nix-based CLI environment, React hello-world
+frontend, and CDK-based static deployment infrastructure.
 
 ## Prerequisites
 
@@ -22,9 +22,17 @@ Dependency policy: avoid upgrading npm dependencies unless explicitly requested.
 
 ## Daily Commands
 
-- Start local app:
+- Start local React app:
   ```bash
   npm run dev
+  ```
+- Build static assets:
+  ```bash
+  npm run build
+  ```
+- Preview built assets:
+  ```bash
+  npm run preview
   ```
 - Run typecheck lint:
   ```bash
@@ -35,7 +43,36 @@ Dependency policy: avoid upgrading npm dependencies unless explicitly requested.
   npm run test
   ```
 
-The local app listens on `http://localhost:3000` by default.
+The local dev server listens on `http://localhost:5173` by default.
+
+## AWS Account Actions Required Before First Deploy
+
+You need to do these steps in your AWS account:
+
+1. Create a non-root deploy identity (user or role) with MFA.
+2. Configure AWS CLI credentials/profile for that identity.
+3. Bootstrap CDK for your account and region:
+   ```bash
+   cdk bootstrap aws://<ACCOUNT_ID>/<REGION>
+   ```
+
+Then from this repo:
+
+```bash
+npm run deploy:dev
+```
+
+If you use a named CLI profile:
+
+```bash
+AWS_PROFILE=roadtrip-deployer AWS_REGION=<REGION> npm run deploy:dev
+```
+
+To tear down and stop most ongoing costs:
+
+```bash
+npm run destroy:dev
+```
 
 ## Tooling Included in the Nix Environment
 

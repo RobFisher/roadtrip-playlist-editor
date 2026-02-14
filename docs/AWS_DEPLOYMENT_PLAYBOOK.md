@@ -82,6 +82,20 @@ Reference:
 Planned stack naming convention:
 - `RoadtripPlaylistEditor-<env>` (example: `RoadtripPlaylistEditor-dev`)
 
+Repository commands:
+
+```bash
+npm run deploy:dev
+npm run destroy:dev
+```
+
+With explicit profile and region:
+
+```bash
+AWS_PROFILE=roadtrip-deployer AWS_REGION=<REGION> npm run deploy:dev
+AWS_PROFILE=roadtrip-deployer AWS_REGION=<REGION> npm run destroy:dev
+```
+
 ## 6. Cost Model (What You Pay For)
 
 Core monthly cost drivers for this architecture:
