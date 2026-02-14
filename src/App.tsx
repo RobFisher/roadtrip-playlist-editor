@@ -11,6 +11,7 @@ import {
 
 const initialPanePlaylistIds = seedProjectData.playlists.slice(0, 3).map((p) => p.id);
 const DRAG_MIME = "application/x-roadtrip-song";
+const NEW_PLAYLIST_VALUE = "__new_playlist__";
 
 export function App() {
   const [playlists, setPlaylists] = useState<Playlist[]>(seedProjectData.playlists);
@@ -25,12 +26,16 @@ export function App() {
     playlistId: string;
     index: number;
   } | null>(null);
+  const [newPlaylistDialogPaneIndex, setNewPlaylistDialogPaneIndex] = useState<number | null>(
+    null
+  );
+  const [newPlaylistName, setNewPlaylistName] = useState("");
 
   const songsById = useMemo(() => {
     return new Map(seedProjectData.songs.map((song) => [song.id, song]));
   }, []);
 
-  const availableForNewPane = seedProjectData.playlists.find(
+  const availableForNewPane = playlists.find(
     (playlist) => !panePlaylistIds.includes(playlist.id)
   );
 
@@ -46,11 +51,45 @@ export function App() {
   }
 
   function updatePanePlaylist(index: number, playlistId: string): void {
+    if (playlistId === NEW_PLAYLIST_VALUE) {
+      setNewPlaylistDialogPaneIndex(index);
+      setNewPlaylistName("");
+      return;
+    }
+
     setPanePlaylistIds((prev) =>
       prev.map((currentId, paneIndex) =>
         paneIndex === index ? playlistId : currentId
       )
     );
+  }
+
+  function createPlaylistFromDialog(): void {
+    if (newPlaylistDialogPaneIndex === null) {
+      return;
+    }
+
+    const trimmedName = newPlaylistName.trim();
+    if (!trimmedName) {
+      return;
+    }
+
+    const newPlaylistId = `playlist-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const newPlaylist: Playlist = {
+      id: newPlaylistId,
+      name: trimmedName,
+      songIds: []
+    };
+
+    setPlaylists((prev) => [...prev, newPlaylist]);
+    setPanePlaylistIds((prev) =>
+      prev.map((playlistId, paneIndex) =>
+        paneIndex === newPlaylistDialogPaneIndex ? newPlaylistId : playlistId
+      )
+    );
+
+    setNewPlaylistDialogPaneIndex(null);
+    setNewPlaylistName("");
   }
 
   function onSongClick(playlistId: string, songId: string): void {
@@ -187,11 +226,12 @@ export function App() {
                   value={playlist.id}
                   onChange={(event) => updatePanePlaylist(paneIndex, event.target.value)}
                 >
-                  {seedProjectData.playlists.map((option) => (
+                  {playlists.map((option) => (
                     <option key={option.id} value={option.id}>
                       {option.name}
                     </option>
                   ))}
+                  <option value={NEW_PLAYLIST_VALUE}>New playlist...</option>
                 </select>
                 <button
                   className="pane-delete"
@@ -287,6 +327,45 @@ export function App() {
           );
         })}
       </section>
+
+      {newPlaylistDialogPaneIndex !== null && (
+        <div className="modal-backdrop">
+          <div className="modal-card" role="dialog" aria-modal="true">
+            <h2>Create Playlist</h2>
+            <label>
+              Playlist name
+              <input
+                autoFocus
+                value={newPlaylistName}
+                onChange={(event) => setNewPlaylistName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    createPlaylistFromDialog();
+                  }
+                }}
+              />
+            </label>
+            <div className="modal-actions">
+              <button
+                className="modal-cancel"
+                onClick={() => {
+                  setNewPlaylistDialogPaneIndex(null);
+                  setNewPlaylistName("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="modal-create"
+                onClick={createPlaylistFromDialog}
+                disabled={!newPlaylistName.trim()}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

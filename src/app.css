@@ -195,3 +195,70 @@ h1 {
   font-size: 1rem;
   color: #4f6174;
 }
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 28, 39, 0.35);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.modal-card {
+  width: min(420px, 100%);
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 20px 44px rgba(12, 20, 31, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-card h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.modal-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.92rem;
+  color: #32465f;
+}
+
+.modal-card input {
+  border: 1px solid #c8d2e2;
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: inherit;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.modal-actions button {
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 600;
+}
+
+.modal-cancel {
+  border: 1px solid #c8d2e2;
+  background: #f5f8fc;
+}
+
+.modal-create {
+  border: none;
+  background: #2f4f87;
+  color: #ffffff;
+}
+
+.modal-create:disabled {
+  opacity: 0.55;
+}
