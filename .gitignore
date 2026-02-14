@@ -4,3 +4,4 @@ dist/
 .direnv/
 *.log
 cdk.out/
+cdk.context.json
