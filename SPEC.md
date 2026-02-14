@@ -14,7 +14,7 @@ When viewing playlists, it should be easy to see how many other playlists each s
 is in.
 
 We will have the concept of a project, which is just a set of playlists. I should be able
-to invite frieds to work on a project.
+to invite friends to work on a project.
 
 # Most important rule
 For sharing information between users we may store at most email addresses: no other PII.
@@ -41,8 +41,14 @@ Prefer to use existing libraries where appropriate: keep new code minimal.
 The app should load completely into the browser as a single page. Use DynamoDb for
 back-end storage: the main reason for this is sharing of playlists between users.
 
-To begin with we will integrate with Spotify for import and export of playlists. We
-may support other music services in future.
+To begin with we should support import and export of a standard playlist file format.
+The intent is that this path should work without needing third-party auth and may
+also provide an interoperability bridge to Spotify and other music services.
+
+Spotify integration is still a goal, but file-based import/export should be delivered
+first so we can avoid being blocked by third-party auth issues.
+
+We may support other music services in future.
 
 ## UI
 This is primarily a desktop-focused web app. The main UI concept is scrolling vertical
@@ -53,8 +59,10 @@ Each song rectangle should show the title and artist, the number of playlists th
 is in, and a small thumbnail of the art for the song.
 
 The left pane is special: this is the search pane. We will start by being able to search
-Spotify. I would also like to be able to get lists of songs in other ways, such as by
-asking an LLM for suggestions.
+Spotify, but we should also support a low-friction search option that does not require
+individual user auth where possible (for example a free/public song metadata provider).
+I would also like to be able to get lists of songs in other ways, such as by asking an
+LLM for suggestions.
 
 Other panes show playlists. It should be possible to choose which playlists appear in
 which panes.
@@ -77,6 +85,11 @@ Sign-ins may be needed for the following reasons:
 I would like to minimise the number of sign-ins required: if it is possible to use
 a single Google SSO for everything we should. If we can access features without
 sign-in, let's try that.
+
+We should prioritize features in this order if auth gets difficult:
+ - file-based playlist import/export
+ - free/public song search integration where available
+ - Spotify auth-based import/export
 
 I am not sure how best to handle concurrent editing. Ideally if another user makes
 a change to a playlist I am editing, this should be visible to me straight away.
