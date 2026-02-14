@@ -21,6 +21,7 @@ import {
 const initialPanePlaylistIds = seedProjectData.playlists.slice(0, 3).map((p) => p.id);
 const DRAG_MIME = "application/x-roadtrip-song";
 const NEW_PLAYLIST_VALUE = "__new_playlist__";
+const IMPORT_SPOTIFY_VALUE = "__import_spotify__";
 const SPOTIFY_AUTH_STATE_KEY = "spotify_pkce_state";
 const SPOTIFY_AUTH_VERIFIER_KEY = "spotify_pkce_verifier";
 const SPOTIFY_ACCESS_TOKEN_KEY = "spotify_access_token";
@@ -67,7 +68,9 @@ export function App() {
   const [spotifyPlaylists, setSpotifyPlaylists] = useState<SpotifyPlaylistSummary[]>([]);
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [selectedSpotifyPlaylistId, setSelectedSpotifyPlaylistId] = useState<string>("");
-  const [spotifyTargetPaneIndex, setSpotifyTargetPaneIndex] = useState<number>(0);
+  const [spotifyImportDialogPaneIndex, setSpotifyImportDialogPaneIndex] = useState<number | null>(
+    null
+  );
   const [spotifyStatus, setSpotifyStatus] = useState<string | null>(null);
 
   const songsById = useMemo(() => {
@@ -171,6 +174,10 @@ export function App() {
       setNewPlaylistName("");
       return;
     }
+    if (playlistId === IMPORT_SPOTIFY_VALUE) {
+      setSpotifyImportDialogPaneIndex(index);
+      return;
+    }
 
     setPanePlaylistIds((prev) =>
       prev.map((currentId, paneIndex) =>
@@ -230,6 +237,19 @@ export function App() {
     localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_EXPIRES_AT_KEY);
   }
 
+  useEffect(() => {
+    if (
+      spotifyImportDialogPaneIndex === null ||
+      !spotifyToken ||
+      spotifyPlaylists.length > 0 ||
+      spotifyLoading
+    ) {
+      return;
+    }
+
+    void loadSpotifyPlaylists();
+  }, [spotifyImportDialogPaneIndex, spotifyLoading, spotifyPlaylists.length, spotifyToken]);
+
   async function loadSpotifyPlaylists(): Promise<void> {
     if (!spotifyToken) {
       return;
@@ -252,7 +272,11 @@ export function App() {
   }
 
   async function importSelectedSpotifyPlaylist(): Promise<void> {
-    if (!spotifyToken || !selectedSpotifyPlaylistId) {
+    if (
+      !spotifyToken ||
+      !selectedSpotifyPlaylistId ||
+      spotifyImportDialogPaneIndex === null
+    ) {
       return;
     }
 
@@ -312,14 +336,17 @@ export function App() {
 
         setPanePlaylistIds((prevPaneIds) =>
           prevPaneIds.map((playlistId, paneIndex) =>
-            paneIndex === spotifyTargetPaneIndex ? importedPlaylist.id : playlistId
+            paneIndex === spotifyImportDialogPaneIndex ? importedPlaylist.id : playlistId
           )
         );
 
         return [...prevPlaylists, importedPlaylist];
       });
 
-      setSpotifyStatus(`Imported "${selected.name}" into pane ${spotifyTargetPaneIndex + 1}.`);
+      setSpotifyStatus(
+        `Imported "${selected.name}" into pane ${spotifyImportDialogPaneIndex + 1}.`
+      );
+      setSpotifyImportDialogPaneIndex(null);
     } catch (error) {
       setSpotifyStatus(
         error instanceof Error ? error.message : "Failed to import selected Spotify playlist."
@@ -440,46 +467,6 @@ export function App() {
           <button onClick={addPane} disabled={!availableForNewPane}>
             Add Pane
           </button>
-          {!spotifyToken ? (
-            <button onClick={() => void connectSpotify()}>Connect Spotify</button>
-          ) : (
-            <>
-              <button onClick={() => void loadSpotifyPlaylists()} disabled={spotifyLoading}>
-                Load My Spotify Playlists
-              </button>
-              <select
-                value={selectedSpotifyPlaylistId}
-                onChange={(event) => setSelectedSpotifyPlaylistId(event.target.value)}
-                disabled={spotifyLoading || spotifyPlaylists.length === 0}
-              >
-                <option value="">Select Spotify playlist...</option>
-                {spotifyPlaylists.map((playlist) => (
-                  <option key={playlist.id} value={playlist.id}>
-                    {playlist.name} ({playlist.tracksTotal})
-                  </option>
-                ))}
-              </select>
-              <select
-                value={spotifyTargetPaneIndex}
-                onChange={(event) =>
-                  setSpotifyTargetPaneIndex(Number.parseInt(event.target.value, 10))
-                }
-              >
-                {panePlaylistIds.map((_, index) => (
-                  <option key={`pane-${index}`} value={index}>
-                    Import into pane {index + 1}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={() => void importSelectedSpotifyPlaylist()}
-                disabled={!selectedSpotifyPlaylistId || spotifyLoading}
-              >
-                Import Selected Playlist
-              </button>
-              <button onClick={disconnectSpotify}>Disconnect Spotify</button>
-            </>
-          )}
           <span className="drag-mode-indicator">Current drag mode: {dragModeLabel}</span>
           {spotifyAuthError && <span className="status-error">{spotifyAuthError}</span>}
           {spotifyStatus && <span className="status-info">{spotifyStatus}</span>}
@@ -511,6 +498,7 @@ export function App() {
                     </option>
                   ))}
                   <option value={NEW_PLAYLIST_VALUE}>New playlist...</option>
+                  <option value={IMPORT_SPOTIFY_VALUE}>Import from Spotify...</option>
                 </select>
                 <button
                   className="pane-delete"
@@ -642,6 +630,77 @@ export function App() {
                 Create
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {spotifyImportDialogPaneIndex !== null && (
+        <div className="modal-backdrop">
+          <div className="modal-card" role="dialog" aria-modal="true">
+            <h2>Import From Spotify</h2>
+            <p className="modal-support">
+              Target pane: {spotifyImportDialogPaneIndex + 1}
+            </p>
+            {!spotifyToken ? (
+              <>
+                <p className="modal-support">
+                  Connect Spotify first to load your playlists.
+                </p>
+                <div className="modal-actions">
+                  <button
+                    className="modal-cancel"
+                    onClick={() => setSpotifyImportDialogPaneIndex(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button className="modal-create" onClick={() => void connectSpotify()}>
+                    Connect Spotify
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <label>
+                  Spotify playlist
+                  <select
+                    value={selectedSpotifyPlaylistId}
+                    onChange={(event) => setSelectedSpotifyPlaylistId(event.target.value)}
+                    disabled={spotifyLoading}
+                  >
+                    <option value="">Select Spotify playlist...</option>
+                    {spotifyPlaylists.map((playlist) => (
+                      <option key={playlist.id} value={playlist.id}>
+                        {playlist.name} ({playlist.tracksTotal})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="modal-actions">
+                  <button
+                    className="modal-cancel"
+                    onClick={() => setSpotifyImportDialogPaneIndex(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="modal-cancel"
+                    onClick={() => void loadSpotifyPlaylists()}
+                    disabled={spotifyLoading}
+                  >
+                    Refresh List
+                  </button>
+                  <button className="modal-cancel" onClick={disconnectSpotify}>
+                    Disconnect
+                  </button>
+                  <button
+                    className="modal-create"
+                    onClick={() => void importSelectedSpotifyPlaylist()}
+                    disabled={!selectedSpotifyPlaylistId || spotifyLoading}
+                  >
+                    Import
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

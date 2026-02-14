@@ -247,10 +247,24 @@ h1 {
   color: #32465f;
 }
 
+.modal-support {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #425a77;
+}
+
 .modal-card input {
   border: 1px solid #c8d2e2;
   border-radius: 8px;
   padding: 9px 10px;
+  font: inherit;
+}
+
+.modal-card select {
+  border: 1px solid #c8d2e2;
+  border-radius: 8px;
+  padding: 9px 10px;
+  background: #ffffff;
   font: inherit;
 }
 
