@@ -42,3 +42,7 @@ The local app listens on `http://localhost:3000` by default.
 - `node` / `npm`
 - `aws`
 - `cdk`
+
+## Deployment Documentation
+
+- AWS deploy/IAM/DNS/cost/teardown playbook: `docs/AWS_DEPLOYMENT_PLAYBOOK.md`

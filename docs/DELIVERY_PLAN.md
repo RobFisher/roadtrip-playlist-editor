@@ -25,14 +25,16 @@ Goal: deploy a basic app before feature complexity.
 Tasks:
 
 1. Create minimal React SPA with one static page.
-2. Provision AWS hosting path via CDK (for example S3 + CloudFront or Amplify-hosted static app).
+2. Provision AWS hosting path via CDK using S3 + CloudFront.
 3. Set up one deploy command from local environment.
+4. Publish deployment docs covering IAM setup, DNS, costs, and teardown for users deploying to their own AWS account.
 
 Exit criteria:
 
 - Public HTTPS URL serves the app.
 - Redeploy after UI text change completes successfully.
 - Rollback path documented.
+- AWS deployment guide includes clear cost drivers and an explicit `cdk destroy` teardown procedure.
 
 ## Milestone 2: Core Local Editor + File Import/Export (No Third-party Auth)
 

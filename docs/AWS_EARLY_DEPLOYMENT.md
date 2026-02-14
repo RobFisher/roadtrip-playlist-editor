@@ -2,6 +2,9 @@
 
 Objective: get a publicly reachable "hello world" deployed before advanced features.
 
+Detailed implementation guidance (IAM setup, cost controls, teardown, DNS):
+- See `docs/AWS_DEPLOYMENT_PLAYBOOK.md`.
+
 ## Deployment Target
 
 Use a static SPA deployment first:
