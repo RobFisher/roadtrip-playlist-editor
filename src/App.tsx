@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import "./app.css";
 import {
   applySongDropAtIndex,
@@ -9,11 +9,13 @@ import {
 } from "./playlistModel.js";
 
 const initialPanePlaylistIds = seedProjectData.playlists.slice(0, 3).map((p) => p.id);
+const DRAG_MIME = "application/x-roadtrip-song";
 
 export function App() {
   const [playlists, setPlaylists] = useState<Playlist[]>(seedProjectData.playlists);
   const [panePlaylistIds, setPanePlaylistIds] = useState<string[]>(initialPanePlaylistIds);
   const [dragModeLabel, setDragModeLabel] = useState<"copy" | "move">("copy");
+  const dragPayloadRef = useRef<DragPayload | null>(null);
   const [dropTarget, setDropTarget] = useState<{
     playlistId: string;
     index: number;
@@ -55,26 +57,52 @@ export function App() {
     setDragModeLabel(mode);
 
     const payload: DragPayload = { songId, sourcePlaylistId, mode };
-    event.dataTransfer.setData("application/json", JSON.stringify(payload));
+    dragPayloadRef.current = payload;
+    const payloadText = JSON.stringify(payload);
+    event.dataTransfer.setData(DRAG_MIME, payloadText);
+    event.dataTransfer.setData("text/plain", payloadText);
     event.dataTransfer.effectAllowed = "copyMove";
   }
 
   function onPaneDrop(
     event: React.DragEvent<HTMLElement>,
     destinationPlaylistId: string,
-    destinationIndex: number
+    destinationIndex?: number
   ): void {
     event.preventDefault();
-    const payloadRaw = event.dataTransfer.getData("application/json");
-    if (!payloadRaw) {
+    const payloadRaw =
+      event.dataTransfer.getData(DRAG_MIME) ||
+      event.dataTransfer.getData("text/plain");
+    let payload: DragPayload | null = null;
+
+    if (payloadRaw) {
+      try {
+        payload = JSON.parse(payloadRaw) as DragPayload;
+      } catch {
+        payload = null;
+      }
+    }
+
+    if (!payload) {
+      payload = dragPayloadRef.current;
+    }
+
+    if (!payload) {
       return;
     }
 
-    const payload = JSON.parse(payloadRaw) as DragPayload;
+    const resolvedIndex =
+      destinationIndex ??
+      (dropTarget?.playlistId === destinationPlaylistId
+        ? dropTarget.index
+        : playlists.find((playlist) => playlist.id === destinationPlaylistId)?.songIds
+            .length ?? 0);
+
     setPlaylists((prev) =>
-      applySongDropAtIndex(prev, payload, destinationPlaylistId, destinationIndex)
+      applySongDropAtIndex(prev, payload, destinationPlaylistId, resolvedIndex)
     );
     setDropTarget(null);
+    dragPayloadRef.current = null;
   }
 
   function onDropSlotDragOver(
@@ -84,6 +112,17 @@ export function App() {
   ): void {
     event.preventDefault();
     setDropTarget({ playlistId, index: destinationIndex });
+  }
+
+  function onSongCardDragOver(
+    event: React.DragEvent<HTMLElement>,
+    playlistId: string,
+    songIndex: number
+  ): void {
+    event.preventDefault();
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const isLowerHalf = event.clientY > bounds.top + bounds.height / 2;
+    setDropTarget({ playlistId, index: isLowerHalf ? songIndex + 1 : songIndex });
   }
 
   return (
@@ -113,7 +152,12 @@ export function App() {
           }
 
           return (
-            <article className="pane" key={`${paneIndex}-${panePlaylistId}`}>
+            <article
+              className="pane"
+              key={`${paneIndex}-${panePlaylistId}`}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => onPaneDrop(event, playlist.id)}
+            >
               <header className="pane-header">
                 <select
                   value={playlist.id}
@@ -163,7 +207,13 @@ export function App() {
                         onDragStart={(event) =>
                           onSongDragStart(event, playlist.id, song.id)
                         }
-                        onDragEnd={() => setDropTarget(null)}
+                        onDragOver={(event) =>
+                          onSongCardDragOver(event, playlist.id, songIndex)
+                        }
+                        onDragEnd={() => {
+                          setDropTarget(null);
+                          dragPayloadRef.current = null;
+                        }}
                       >
                         <img src={song.artworkUrl} alt="" />
                         <div className="song-copy">
