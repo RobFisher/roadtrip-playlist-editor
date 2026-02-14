@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./app.css";
 import {
   applySongDropAtIndex,
@@ -8,12 +8,42 @@ import {
   type DragPayload,
   type Playlist
 } from "./playlistModel.js";
+import {
+  buildSpotifyAuthorizeUrl,
+  exchangeCodeForToken,
+  generateRandomString,
+  getCurrentUserPlaylists,
+  getPlaylistTracks,
+  type SpotifyAuthConfig,
+  type SpotifyPlaylistSummary
+} from "./spotify.js";
 
 const initialPanePlaylistIds = seedProjectData.playlists.slice(0, 3).map((p) => p.id);
 const DRAG_MIME = "application/x-roadtrip-song";
 const NEW_PLAYLIST_VALUE = "__new_playlist__";
+const SPOTIFY_AUTH_STATE_KEY = "spotify_pkce_state";
+const SPOTIFY_AUTH_VERIFIER_KEY = "spotify_pkce_verifier";
+const SPOTIFY_ACCESS_TOKEN_KEY = "spotify_access_token";
+const SPOTIFY_ACCESS_TOKEN_EXPIRES_AT_KEY = "spotify_access_token_expires_at";
+
+function normalizePlaylistName(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function buildUniquePlaylistId(existingPlaylists: Playlist[], base: string): string {
+  if (!existingPlaylists.some((playlist) => playlist.id === base)) {
+    return base;
+  }
+
+  let counter = 2;
+  while (existingPlaylists.some((playlist) => playlist.id === `${base}-${counter}`)) {
+    counter += 1;
+  }
+  return `${base}-${counter}`;
+}
 
 export function App() {
+  const [songs, setSongs] = useState(seedProjectData.songs);
   const [playlists, setPlaylists] = useState<Playlist[]>(seedProjectData.playlists);
   const [panePlaylistIds, setPanePlaylistIds] = useState<string[]>(initialPanePlaylistIds);
   const [dragModeLabel, setDragModeLabel] = useState<"copy" | "move">("copy");
@@ -30,14 +60,99 @@ export function App() {
     null
   );
   const [newPlaylistName, setNewPlaylistName] = useState("");
+  const [spotifyToken, setSpotifyToken] = useState<string | null>(
+    localStorage.getItem(SPOTIFY_ACCESS_TOKEN_KEY)
+  );
+  const [spotifyAuthError, setSpotifyAuthError] = useState<string | null>(null);
+  const [spotifyPlaylists, setSpotifyPlaylists] = useState<SpotifyPlaylistSummary[]>([]);
+  const [spotifyLoading, setSpotifyLoading] = useState(false);
+  const [selectedSpotifyPlaylistId, setSelectedSpotifyPlaylistId] = useState<string>("");
+  const [spotifyTargetPaneIndex, setSpotifyTargetPaneIndex] = useState<number>(0);
+  const [spotifyStatus, setSpotifyStatus] = useState<string | null>(null);
 
   const songsById = useMemo(() => {
-    return new Map(seedProjectData.songs.map((song) => [song.id, song]));
+    return new Map(songs.map((song) => [song.id, song]));
+  }, [songs]);
+
+  const spotifyConfig: SpotifyAuthConfig = useMemo(() => {
+    const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID ?? "";
+    const redirectUri =
+      import.meta.env.VITE_SPOTIFY_REDIRECT_URI ??
+      `${window.location.origin}${window.location.pathname}`;
+
+    return {
+      clientId,
+      redirectUri,
+      scopes: ["playlist-read-private", "playlist-read-collaborative"]
+    };
   }, []);
 
   const availableForNewPane = playlists.find(
     (playlist) => !panePlaylistIds.includes(playlist.id)
   );
+
+  useEffect(() => {
+    const expiresAtRaw = localStorage.getItem(SPOTIFY_ACCESS_TOKEN_EXPIRES_AT_KEY);
+    const expiresAt = expiresAtRaw ? Number.parseInt(expiresAtRaw, 10) : 0;
+    if (expiresAt && Date.now() > expiresAt) {
+      localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_KEY);
+      localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_EXPIRES_AT_KEY);
+      setSpotifyToken(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const code = url.searchParams.get("code");
+    const returnedState = url.searchParams.get("state");
+    const oauthError = url.searchParams.get("error");
+
+    if (oauthError) {
+      setSpotifyAuthError(`Spotify auth error: ${oauthError}`);
+      url.searchParams.delete("error");
+      window.history.replaceState({}, "", url.toString());
+      return;
+    }
+
+    if (!code || !returnedState) {
+      return;
+    }
+
+    const expectedState = sessionStorage.getItem(SPOTIFY_AUTH_STATE_KEY);
+    const verifier = sessionStorage.getItem(SPOTIFY_AUTH_VERIFIER_KEY);
+    if (!expectedState || !verifier || expectedState !== returnedState) {
+      setSpotifyAuthError("Spotify auth state mismatch. Please try again.");
+      return;
+    }
+
+    // Consume the callback params before async work to avoid double exchange
+    // in React Strict Mode dev remounts.
+    url.searchParams.delete("code");
+    url.searchParams.delete("state");
+    window.history.replaceState({}, "", url.toString());
+
+    const run = async () => {
+      try {
+        const tokenResponse = await exchangeCodeForToken(spotifyConfig, code, verifier);
+        setSpotifyToken(tokenResponse.access_token);
+        localStorage.setItem(SPOTIFY_ACCESS_TOKEN_KEY, tokenResponse.access_token);
+        localStorage.setItem(
+          SPOTIFY_ACCESS_TOKEN_EXPIRES_AT_KEY,
+          String(Date.now() + tokenResponse.expires_in * 1000)
+        );
+        setSpotifyAuthError(null);
+      } catch (error) {
+        setSpotifyAuthError(
+          error instanceof Error ? error.message : "Failed to complete Spotify auth."
+        );
+      } finally {
+        sessionStorage.removeItem(SPOTIFY_AUTH_STATE_KEY);
+        sessionStorage.removeItem(SPOTIFY_AUTH_VERIFIER_KEY);
+      }
+    };
+
+    void run();
+  }, [spotifyConfig]);
 
   function addPane(): void {
     if (!availableForNewPane) {
@@ -69,7 +184,7 @@ export function App() {
       return;
     }
 
-    const trimmedName = newPlaylistName.trim();
+    const trimmedName = normalizePlaylistName(newPlaylistName);
     if (!trimmedName) {
       return;
     }
@@ -90,6 +205,128 @@ export function App() {
 
     setNewPlaylistDialogPaneIndex(null);
     setNewPlaylistName("");
+  }
+
+  async function connectSpotify(): Promise<void> {
+    if (!spotifyConfig.clientId) {
+      setSpotifyAuthError("Missing VITE_SPOTIFY_CLIENT_ID. Check README setup.");
+      return;
+    }
+
+    const state = generateRandomString(32);
+    const verifier = generateRandomString(64);
+    sessionStorage.setItem(SPOTIFY_AUTH_STATE_KEY, state);
+    sessionStorage.setItem(SPOTIFY_AUTH_VERIFIER_KEY, verifier);
+
+    const authUrl = await buildSpotifyAuthorizeUrl(spotifyConfig, state, verifier);
+    window.location.href = authUrl;
+  }
+
+  function disconnectSpotify(): void {
+    setSpotifyToken(null);
+    setSpotifyPlaylists([]);
+    setSelectedSpotifyPlaylistId("");
+    localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_KEY);
+    localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_EXPIRES_AT_KEY);
+  }
+
+  async function loadSpotifyPlaylists(): Promise<void> {
+    if (!spotifyToken) {
+      return;
+    }
+    setSpotifyLoading(true);
+    setSpotifyStatus("Loading Spotify playlists...");
+
+    try {
+      const loaded = await getCurrentUserPlaylists(spotifyToken);
+      setSpotifyPlaylists(loaded);
+      setSelectedSpotifyPlaylistId(loaded[0]?.id ?? "");
+      setSpotifyStatus(`Loaded ${loaded.length} playlist(s).`);
+    } catch (error) {
+      setSpotifyStatus(
+        error instanceof Error ? error.message : "Failed to load Spotify playlists."
+      );
+    } finally {
+      setSpotifyLoading(false);
+    }
+  }
+
+  async function importSelectedSpotifyPlaylist(): Promise<void> {
+    if (!spotifyToken || !selectedSpotifyPlaylistId) {
+      return;
+    }
+
+    const selected = spotifyPlaylists.find((playlist) => playlist.id === selectedSpotifyPlaylistId);
+    if (!selected) {
+      return;
+    }
+
+    setSpotifyLoading(true);
+    setSpotifyStatus(`Importing "${selected.name}"...`);
+
+    try {
+      const tracks = await getPlaylistTracks(spotifyToken, selected.id);
+
+      const tracksByLocalSongId = new Map(
+        tracks.map((track) => [
+          `spotify:${track.id}`,
+          {
+            id: `spotify:${track.id}`,
+            title: track.title,
+            artist: track.artists,
+            artworkUrl: track.artworkUrl,
+            spotifyUri: track.spotifyUri
+          }
+        ])
+      );
+
+      setSongs((prevSongs) => {
+        const merged = [...prevSongs];
+        const existing = new Set(prevSongs.map((song) => song.id));
+        for (const [songId, song] of tracksByLocalSongId) {
+          if (!existing.has(songId)) {
+            merged.push(song);
+          }
+        }
+        return merged;
+      });
+
+      setPlaylists((prevPlaylists) => {
+        const uniquePlaylistId = buildUniquePlaylistId(
+          prevPlaylists,
+          `playlist-spotify-${selected.id}`
+        );
+
+        const importedSongIds: string[] = [];
+
+        for (const track of tracks) {
+          const localSongId = `spotify:${track.id}`;
+          importedSongIds.push(localSongId);
+        }
+
+        const importedPlaylist: Playlist = {
+          id: uniquePlaylistId,
+          name: `${selected.name} (Spotify)`,
+          songIds: importedSongIds
+        };
+
+        setPanePlaylistIds((prevPaneIds) =>
+          prevPaneIds.map((playlistId, paneIndex) =>
+            paneIndex === spotifyTargetPaneIndex ? importedPlaylist.id : playlistId
+          )
+        );
+
+        return [...prevPlaylists, importedPlaylist];
+      });
+
+      setSpotifyStatus(`Imported "${selected.name}" into pane ${spotifyTargetPaneIndex + 1}.`);
+    } catch (error) {
+      setSpotifyStatus(
+        error instanceof Error ? error.message : "Failed to import selected Spotify playlist."
+      );
+    } finally {
+      setSpotifyLoading(false);
+    }
   }
 
   function onSongClick(playlistId: string, songId: string): void {
@@ -203,7 +440,49 @@ export function App() {
           <button onClick={addPane} disabled={!availableForNewPane}>
             Add Pane
           </button>
+          {!spotifyToken ? (
+            <button onClick={() => void connectSpotify()}>Connect Spotify</button>
+          ) : (
+            <>
+              <button onClick={() => void loadSpotifyPlaylists()} disabled={spotifyLoading}>
+                Load My Spotify Playlists
+              </button>
+              <select
+                value={selectedSpotifyPlaylistId}
+                onChange={(event) => setSelectedSpotifyPlaylistId(event.target.value)}
+                disabled={spotifyLoading || spotifyPlaylists.length === 0}
+              >
+                <option value="">Select Spotify playlist...</option>
+                {spotifyPlaylists.map((playlist) => (
+                  <option key={playlist.id} value={playlist.id}>
+                    {playlist.name} ({playlist.tracksTotal})
+                  </option>
+                ))}
+              </select>
+              <select
+                value={spotifyTargetPaneIndex}
+                onChange={(event) =>
+                  setSpotifyTargetPaneIndex(Number.parseInt(event.target.value, 10))
+                }
+              >
+                {panePlaylistIds.map((_, index) => (
+                  <option key={`pane-${index}`} value={index}>
+                    Import into pane {index + 1}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => void importSelectedSpotifyPlaylist()}
+                disabled={!selectedSpotifyPlaylistId || spotifyLoading}
+              >
+                Import Selected Playlist
+              </button>
+              <button onClick={disconnectSpotify}>Disconnect Spotify</button>
+            </>
+          )}
           <span className="drag-mode-indicator">Current drag mode: {dragModeLabel}</span>
+          {spotifyAuthError && <span className="status-error">{spotifyAuthError}</span>}
+          {spotifyStatus && <span className="status-info">{spotifyStatus}</span>}
         </div>
       </header>
 

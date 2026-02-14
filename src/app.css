@@ -49,6 +49,14 @@ body {
   cursor: pointer;
 }
 
+.workspace-actions select {
+  border: 1px solid #c8d2e2;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #ffffff;
+  font: inherit;
+}
+
 .workspace-actions button:disabled {
   background: #8ca0c4;
   cursor: not-allowed;
@@ -57,6 +65,16 @@ body {
 .drag-mode-indicator {
   font-size: 0.85rem;
   color: #304765;
+}
+
+.status-info {
+  font-size: 0.84rem;
+  color: #2d4f78;
+}
+
+.status-error {
+  font-size: 0.84rem;
+  color: #9c2f2f;
 }
 
 .pane-grid {

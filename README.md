@@ -43,7 +43,29 @@ Dependency policy: avoid upgrading npm dependencies unless explicitly requested.
   npm run test
   ```
 
-The local dev server listens on `http://localhost:5173` by default.
+The local dev server listens on `http://127.0.0.1:5173` by default.
+
+## Spotify Setup (Local + Deployed)
+
+This app uses Spotify Authorization Code flow with PKCE in the browser.
+
+- Required env var:
+  - `VITE_SPOTIFY_CLIENT_ID`
+- Optional env var:
+  - `VITE_SPOTIFY_REDIRECT_URI`
+    - default is current page URL (`window.location.origin + window.location.pathname`)
+
+For local development, create `.env.local`:
+
+```bash
+VITE_SPOTIFY_CLIENT_ID=your_spotify_app_client_id
+VITE_SPOTIFY_REDIRECT_URI=http://127.0.0.1:5173/
+```
+
+Important:
+- Add the same redirect URI to your Spotify app settings.
+- Use `127.0.0.1` (not `localhost`) for the redirect URI.
+- Do not put Spotify client secret in frontend code. PKCE flow here uses only client ID.
 
 ## AWS Account Actions Required Before First Deploy
 

@@ -3,6 +3,7 @@ export interface Song {
   title: string;
   artist: string;
   artworkUrl: string;
+  spotifyUri?: string;
 }
 
 export interface Playlist {
