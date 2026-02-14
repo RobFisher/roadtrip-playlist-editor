@@ -1,5 +1,9 @@
 const AUTH_BASE_URL = "https://accounts.spotify.com";
 const API_BASE_URL = "https://api.spotify.com/v1";
+export const REQUIRED_SPOTIFY_SCOPES = [
+  "playlist-read-private",
+  "playlist-read-collaborative"
+] as const;
 
 export interface SpotifyTokenResponse {
   access_token: string;
@@ -13,6 +17,8 @@ export interface SpotifyPlaylistSummary {
   id: string;
   name: string;
   tracksTotal: number;
+  ownerId: string;
+  ownerDisplayName: string;
 }
 
 export interface SpotifyTrackSummary {
@@ -64,7 +70,8 @@ export async function buildSpotifyAuthorizeUrl(
     code_challenge_method: "S256",
     code_challenge: challenge,
     state,
-    scope: config.scopes.join(" ")
+    scope: config.scopes.join(" "),
+    show_dialog: "true"
   });
 
   return `${AUTH_BASE_URL}/authorize?${query.toString()}`;
@@ -108,17 +115,44 @@ async function spotifyGet<T>(path: string, accessToken: string): Promise<T> {
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(`Spotify request failed: ${response.status} ${text}`);
+    let detail = text;
+    try {
+      const parsed = JSON.parse(text) as {
+        error?: { status?: number; message?: string };
+        error_description?: string;
+      };
+      if (parsed.error?.message) {
+        detail = parsed.error.message;
+      } else if (parsed.error_description) {
+        detail = parsed.error_description;
+      }
+    } catch {
+      // Keep raw response text when it is not JSON.
+    }
+    throw new Error(`Spotify request failed (${response.status}): ${detail}`);
   }
 
   return (await response.json()) as T;
+}
+
+async function spotifyGetOrNull<T>(path: string, accessToken: string): Promise<T | null> {
+  try {
+    return await spotifyGet<T>(path, accessToken);
+  } catch {
+    return null;
+  }
 }
 
 export async function getCurrentUserPlaylists(
   accessToken: string
 ): Promise<SpotifyPlaylistSummary[]> {
   type PageResponse = {
-    items: Array<{ id: string; name: string; tracks?: { total?: number } }>;
+    items: Array<{
+      id: string;
+      name: string;
+      tracks?: { total?: number };
+      owner?: { id?: string; display_name?: string };
+    }>;
     next: string | null;
   };
 
@@ -131,7 +165,9 @@ export async function getCurrentUserPlaylists(
       ...page.items.map((item) => ({
         id: item.id,
         name: item.name,
-        tracksTotal: item.tracks?.total ?? 0
+        tracksTotal: item.tracks?.total ?? 0,
+        ownerId: item.owner?.id ?? "",
+        ownerDisplayName: item.owner?.display_name ?? item.owner?.id ?? ""
       }))
     );
 
@@ -143,7 +179,40 @@ export async function getCurrentUserPlaylists(
     nextPath = `${nextUrl.pathname.replace("/v1", "")}${nextUrl.search}`;
   }
 
-  return playlists;
+  // Resolve track totals from playlist detail endpoint; this avoids cases where
+  // simplified list payloads do not provide reliable totals.
+  const totals = await Promise.all(
+    playlists.map(async (playlist) => {
+      const detail = await spotifyGetOrNull<{ tracks?: { total?: number } }>(
+        `/playlists/${encodeURIComponent(playlist.id)}?fields=tracks(total)`,
+        accessToken
+      );
+      return {
+        id: playlist.id,
+        total: detail?.tracks?.total
+      };
+    })
+  );
+  const totalById = new Map(
+    totals
+      .filter((entry): entry is { id: string; total: number } => typeof entry.total === "number")
+      .map((entry) => [entry.id, entry.total])
+  );
+
+  return playlists.map((playlist) => ({
+    ...playlist,
+    tracksTotal: totalById.get(playlist.id) ?? playlist.tracksTotal
+  }));
+}
+
+export async function getCurrentUserProfile(
+  accessToken: string
+): Promise<{ id: string; displayName: string }> {
+  const me = await spotifyGet<{ id: string; display_name?: string }>("/me", accessToken);
+  return {
+    id: me.id,
+    displayName: me.display_name ?? me.id
+  };
 }
 
 export async function getPlaylistTracks(
@@ -164,17 +233,20 @@ export async function getPlaylistTracks(
   };
 
   const tracks: SpotifyTrackSummary[] = [];
-  let nextPath = `/playlists/${playlistId}/tracks?limit=100`;
+  let nextPath = `/playlists/${encodeURIComponent(playlistId)}/items?limit=100`;
 
   while (nextPath) {
     const page = await spotifyGet<TracksResponse>(nextPath, accessToken);
     tracks.push(
       ...page.items
-        .filter((item) => item.track?.id)
+        .filter((item) => item.track)
         .map((item) => {
-          const track = item.track as NonNullable<typeof item.track> & { id: string };
+          const track = item.track as NonNullable<typeof item.track>;
+          const canonicalId =
+            track.id ??
+            track.uri.replace("spotify:", "spotify_").replaceAll(":", "_");
           return {
-            id: track.id,
+            id: canonicalId,
             title: track.name,
             artists: track.artists.map((artist) => artist.name).join(", "),
             artworkUrl: track.album.images?.[0]?.url ?? "",
@@ -192,4 +264,9 @@ export async function getPlaylistTracks(
   }
 
   return tracks;
+}
+
+export function hasRequiredScopes(grantedScope: string, requiredScopes: string[]): boolean {
+  const granted = new Set(grantedScope.split(" ").map((scope) => scope.trim()).filter(Boolean));
+  return requiredScopes.every((scope) => granted.has(scope));
 }

@@ -9,11 +9,14 @@ import {
   type Playlist
 } from "./playlistModel.js";
 import {
+  REQUIRED_SPOTIFY_SCOPES,
   buildSpotifyAuthorizeUrl,
   exchangeCodeForToken,
+  getCurrentUserProfile,
   generateRandomString,
   getCurrentUserPlaylists,
   getPlaylistTracks,
+  hasRequiredScopes,
   type SpotifyAuthConfig,
   type SpotifyPlaylistSummary
 } from "./spotify.js";
@@ -66,6 +69,7 @@ export function App() {
   );
   const [spotifyAuthError, setSpotifyAuthError] = useState<string | null>(null);
   const [spotifyPlaylists, setSpotifyPlaylists] = useState<SpotifyPlaylistSummary[]>([]);
+  const [spotifyUserId, setSpotifyUserId] = useState<string | null>(null);
   const [spotifyLoading, setSpotifyLoading] = useState(false);
   const [selectedSpotifyPlaylistId, setSelectedSpotifyPlaylistId] = useState<string>("");
   const [spotifyImportDialogPaneIndex, setSpotifyImportDialogPaneIndex] = useState<number | null>(
@@ -86,13 +90,25 @@ export function App() {
     return {
       clientId,
       redirectUri,
-      scopes: ["playlist-read-private", "playlist-read-collaborative"]
+      scopes: [...REQUIRED_SPOTIFY_SCOPES]
     };
   }, []);
 
   const availableForNewPane = playlists.find(
     (playlist) => !panePlaylistIds.includes(playlist.id)
   );
+  const spotifyDebugCurlCommands = useMemo(() => {
+    if (!spotifyToken) {
+      return "";
+    }
+
+    const playlistId = selectedSpotifyPlaylistId || "<playlist_id>";
+    return [
+      `curl -i -H "Authorization: Bearer ${spotifyToken}" "https://api.spotify.com/v1/me"`,
+      `curl -i -H "Authorization: Bearer ${spotifyToken}" "https://api.spotify.com/v1/me/playlists?limit=50"`,
+      `curl -i -H "Authorization: Bearer ${spotifyToken}" "https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/items?limit=100"`
+    ].join("\n\n");
+  }, [selectedSpotifyPlaylistId, spotifyToken]);
 
   useEffect(() => {
     const expiresAtRaw = localStorage.getItem(SPOTIFY_ACCESS_TOKEN_EXPIRES_AT_KEY);
@@ -143,8 +159,16 @@ export function App() {
           SPOTIFY_ACCESS_TOKEN_EXPIRES_AT_KEY,
           String(Date.now() + tokenResponse.expires_in * 1000)
         );
+        if (!hasRequiredScopes(tokenResponse.scope, [...REQUIRED_SPOTIFY_SCOPES])) {
+          throw new Error(
+            "Spotify login is missing required playlist scopes. Disconnect and connect again."
+          );
+        }
         setSpotifyAuthError(null);
       } catch (error) {
+        setSpotifyToken(null);
+        localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_KEY);
+        localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_EXPIRES_AT_KEY);
         setSpotifyAuthError(
           error instanceof Error ? error.message : "Failed to complete Spotify auth."
         );
@@ -233,6 +257,7 @@ export function App() {
     setSpotifyToken(null);
     setSpotifyPlaylists([]);
     setSelectedSpotifyPlaylistId("");
+    setSpotifyUserId(null);
     localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_KEY);
     localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_EXPIRES_AT_KEY);
   }
@@ -258,16 +283,35 @@ export function App() {
     setSpotifyStatus("Loading Spotify playlists...");
 
     try {
-      const loaded = await getCurrentUserPlaylists(spotifyToken);
-      setSpotifyPlaylists(loaded);
-      setSelectedSpotifyPlaylistId(loaded[0]?.id ?? "");
-      setSpotifyStatus(`Loaded ${loaded.length} playlist(s).`);
+      const [profile, loaded] = await Promise.all([
+        getCurrentUserProfile(spotifyToken),
+        getCurrentUserPlaylists(spotifyToken)
+      ]);
+      setSpotifyUserId(profile.id);
+      const ownedPlaylists = loaded.filter((playlist) => playlist.ownerId === profile.id);
+      setSpotifyPlaylists(ownedPlaylists);
+      setSelectedSpotifyPlaylistId(ownedPlaylists[0]?.id ?? "");
+      setSpotifyStatus(
+        `Loaded ${loaded.length} playlist(s); ${ownedPlaylists.length} owned by your account and importable.`
+      );
     } catch (error) {
       setSpotifyStatus(
         error instanceof Error ? error.message : "Failed to load Spotify playlists."
       );
     } finally {
       setSpotifyLoading(false);
+    }
+  }
+
+  async function copySpotifyDebugCurl(): Promise<void> {
+    if (!spotifyDebugCurlCommands) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(spotifyDebugCurlCommands);
+      setSpotifyStatus("Copied Spotify cURL commands to clipboard.");
+    } catch {
+      setSpotifyStatus("Failed to copy cURL commands. Select and copy manually.");
     }
   }
 
@@ -290,6 +334,11 @@ export function App() {
 
     try {
       const tracks = await getPlaylistTracks(spotifyToken, selected.id);
+      if (tracks.length === 0) {
+        setSpotifyStatus(
+          `Imported 0 songs from "${selected.name}". The playlist may contain unavailable/local-only items for this token.`
+        );
+      }
 
       const tracksByLocalSongId = new Map(
         tracks.map((track) => [
@@ -344,10 +393,16 @@ export function App() {
       });
 
       setSpotifyStatus(
-        `Imported "${selected.name}" into pane ${spotifyImportDialogPaneIndex + 1}.`
+        `Imported ${tracks.length} song(s) from "${selected.name}" into pane ${spotifyImportDialogPaneIndex + 1}.`
       );
       setSpotifyImportDialogPaneIndex(null);
     } catch (error) {
+      if (error instanceof Error && error.message.includes("403")) {
+        setSpotifyStatus(
+          `Spotify returned 403 while reading this playlist. ${error.message}. Ensure you are logged into the same Spotify account added in your app's user allowlist, then disconnect/reconnect and retry.`
+        );
+        return;
+      }
       setSpotifyStatus(
         error instanceof Error ? error.message : "Failed to import selected Spotify playlist."
       );
@@ -669,11 +724,17 @@ export function App() {
                     <option value="">Select Spotify playlist...</option>
                     {spotifyPlaylists.map((playlist) => (
                       <option key={playlist.id} value={playlist.id}>
-                        {playlist.name} ({playlist.tracksTotal})
+                        {playlist.name} ({playlist.tracksTotal}) {playlist.ownerDisplayName ? `- ${playlist.ownerDisplayName}` : ""}
                       </option>
                     ))}
                   </select>
                 </label>
+                {spotifyPlaylists.length === 0 && (
+                  <p className="modal-support">
+                    No importable playlists found for this account
+                    {spotifyUserId ? ` (${spotifyUserId})` : ""}.
+                  </p>
+                )}
                 <div className="modal-actions">
                   <button
                     className="modal-cancel"
@@ -699,6 +760,28 @@ export function App() {
                     Import
                   </button>
                 </div>
+                {import.meta.env.DEV && (
+                  <details className="debug-details">
+                  <summary>Debug: cURL commands</summary>
+                  <p className="modal-support">
+                    These include your live bearer token. Treat as sensitive.
+                  </p>
+                  <textarea
+                    className="debug-textarea"
+                    readOnly
+                    value={spotifyDebugCurlCommands}
+                  />
+                  <div className="modal-actions">
+                    <button
+                      className="modal-cancel"
+                      onClick={() => void copySpotifyDebugCurl()}
+                      disabled={!spotifyDebugCurlCommands}
+                    >
+                      Copy cURL Commands
+                    </button>
+                  </div>
+                  </details>
+                )}
               </>
             )}
           </div>
