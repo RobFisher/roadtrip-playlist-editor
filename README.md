@@ -53,7 +53,7 @@ You need to do these steps in your AWS account:
 2. Configure AWS CLI credentials/profile for that identity.
 3. Bootstrap CDK for your account and region:
    ```bash
-   cdk bootstrap aws://<ACCOUNT_ID>/<REGION>
+   AWS_PROFILE=roadtrip-deployer AWS_REGION=<REGION> npx aws-cdk bootstrap aws://<ACCOUNT_ID>/<REGION>
    ```
 
 Then from this repo:

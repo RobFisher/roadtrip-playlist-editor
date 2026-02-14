@@ -77,12 +77,14 @@ From repo root:
 
 ```bash
 nix develop
-cdk bootstrap aws://<ACCOUNT_ID>/<REGION>
+AWS_PROFILE=roadtrip-deployer AWS_REGION=<REGION> npx aws-cdk bootstrap aws://<ACCOUNT_ID>/<REGION>
 ```
 
 Notes:
 - Bootstrap creates CDK support resources in your account.
 - You may run bootstrap per region/account pair used for deployments.
+- Prefer `npx aws-cdk` (project-local CLI) over the Nix-packaged `cdk` binary to avoid
+  packaging/version mismatches.
 
 Reference:
 - https://docs.aws.amazon.com/cdk/v2/guide/bootstrapping-env.html
