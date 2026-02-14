@@ -75,10 +75,6 @@ export function applySongDropAtIndex(
   const destinationHasSong = destinationPlaylist.songIds.includes(payload.songId);
 
   if (samePlaylist) {
-    if (payload.mode === "copy") {
-      return playlists;
-    }
-
     const reordered = [...sourcePlaylist.songIds];
     reordered.splice(sourceIndex, 1);
     const boundedIndex = Math.max(0, Math.min(destinationIndex, reordered.length));
@@ -124,6 +120,23 @@ export function applySongDropAtIndex(
     }
 
     return playlist;
+  });
+}
+
+export function removeSongFromPlaylist(
+  playlists: Playlist[],
+  playlistId: string,
+  songId: string
+): Playlist[] {
+  return playlists.map((playlist) => {
+    if (playlist.id !== playlistId) {
+      return playlist;
+    }
+
+    return {
+      ...playlist,
+      songIds: playlist.songIds.filter((id) => id !== songId)
+    };
   });
 }
 

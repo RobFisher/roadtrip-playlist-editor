@@ -88,12 +88,18 @@ body {
   font-weight: 600;
 }
 
+.pane-delete,
 .pane-remove {
   border: 1px solid #c8d2e2;
   border-radius: 8px;
   padding: 8px 10px;
   background: #f7f9fc;
   font-weight: 600;
+}
+
+.pane-delete:disabled,
+.pane-remove:disabled {
+  opacity: 0.55;
 }
 
 .song-list {
@@ -135,6 +141,11 @@ body {
 
 .song-card:active {
   cursor: grabbing;
+}
+
+.song-card-selected {
+  border-color: #4a74b8;
+  box-shadow: 0 0 0 2px rgba(74, 116, 184, 0.24);
 }
 
 .song-card img {

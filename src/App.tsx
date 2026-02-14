@@ -3,6 +3,7 @@ import "./app.css";
 import {
   applySongDropAtIndex,
   countSongMemberships,
+  removeSongFromPlaylist,
   seedProjectData,
   type DragPayload,
   type Playlist
@@ -16,6 +17,10 @@ export function App() {
   const [panePlaylistIds, setPanePlaylistIds] = useState<string[]>(initialPanePlaylistIds);
   const [dragModeLabel, setDragModeLabel] = useState<"copy" | "move">("copy");
   const dragPayloadRef = useRef<DragPayload | null>(null);
+  const [selectedSong, setSelectedSong] = useState<{
+    playlistId: string;
+    songId: string;
+  } | null>(null);
   const [dropTarget, setDropTarget] = useState<{
     playlistId: string;
     index: number;
@@ -46,6 +51,25 @@ export function App() {
         paneIndex === index ? playlistId : currentId
       )
     );
+  }
+
+  function onSongClick(playlistId: string, songId: string): void {
+    setSelectedSong((prev) =>
+      prev?.playlistId === playlistId && prev.songId === songId
+        ? null
+        : { playlistId, songId }
+    );
+  }
+
+  function deleteSelectedFromPlaylist(playlistId: string): void {
+    if (!selectedSong || selectedSong.playlistId !== playlistId) {
+      return;
+    }
+
+    setPlaylists((prev) =>
+      removeSongFromPlaylist(prev, selectedSong.playlistId, selectedSong.songId)
+    );
+    setSelectedSong(null);
   }
 
   function onSongDragStart(
@@ -170,6 +194,14 @@ export function App() {
                   ))}
                 </select>
                 <button
+                  className="pane-delete"
+                  onClick={() => deleteSelectedFromPlaylist(playlist.id)}
+                  disabled={selectedSong?.playlistId !== playlist.id}
+                  title="Delete selected song from this playlist"
+                >
+                  Delete Selected
+                </button>
+                <button
                   className="pane-remove"
                   onClick={() => removePane(paneIndex)}
                   disabled={panePlaylistIds.length <= 1}
@@ -202,8 +234,14 @@ export function App() {
                         onDrop={(event) => onPaneDrop(event, playlist.id, songIndex)}
                       />
                       <article
-                        className="song-card"
+                        className={`song-card ${
+                          selectedSong?.playlistId === playlist.id &&
+                          selectedSong.songId === song.id
+                            ? "song-card-selected"
+                            : ""
+                        }`}
                         draggable
+                        onClick={() => onSongClick(playlist.id, song.id)}
                         onDragStart={(event) =>
                           onSongDragStart(event, playlist.id, song.id)
                         }

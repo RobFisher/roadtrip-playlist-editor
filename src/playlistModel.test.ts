@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applySongDrop, applySongDropAtIndex, type Playlist } from "./playlistModel.js";
+import {
+  applySongDrop,
+  applySongDropAtIndex,
+  removeSongFromPlaylist,
+  type Playlist
+} from "./playlistModel.js";
 
 const basePlaylists: Playlist[] = [
   { id: "p1", name: "One", songIds: ["s1", "s2"] },
@@ -59,4 +64,16 @@ test("copy inserts song at specific position in destination", () => {
   );
 
   assert.deepEqual(updated[1]?.songIds, ["s2", "s3"]);
+});
+
+test("removeSongFromPlaylist removes only from selected playlist", () => {
+  const withSharedSong: Playlist[] = [
+    { id: "p1", name: "One", songIds: ["s1", "s2"] },
+    { id: "p2", name: "Two", songIds: ["s1", "s3"] }
+  ];
+
+  const updated = removeSongFromPlaylist(withSharedSong, "p1", "s1");
+
+  assert.deepEqual(updated[0]?.songIds, ["s2"]);
+  assert.deepEqual(updated[1]?.songIds, ["s1", "s3"]);
 });
