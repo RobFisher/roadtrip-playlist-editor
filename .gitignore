@@ -5,3 +5,5 @@ dist/
 *.log
 cdk.out/
 cdk.context.json
+.env.local
+
