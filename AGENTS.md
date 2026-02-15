@@ -17,6 +17,7 @@
 - `src/components/PlaylistPane.tsx`: Single pane UI (playlist selector, delete/remove actions, song list rendering, drag/drop slots/cards).
 - `src/components/NewPlaylistDialog.tsx`: Modal for creating a new playlist name.
 - `src/components/SpotifyImportDialog.tsx`: Modal for Spotify connect/list/select/import and optional dev-only curl debug panel.
+- `src/hooks/useSpotifyAuth.ts`: Encapsulates Spotify PKCE auth lifecycle for the browser app (connect redirect, callback token exchange, scope validation, token persistence/expiry, disconnect cleanup).
 
 ## Refactor Convention
 
