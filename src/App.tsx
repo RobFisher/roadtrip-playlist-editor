@@ -291,11 +291,10 @@ export function App() {
         getCurrentUserPlaylists(spotifyToken)
       ]);
       setSpotifyUserId(profile.id);
-      const ownedPlaylists = loaded.filter((playlist) => playlist.ownerId === profile.id);
-      setSpotifyPlaylists(ownedPlaylists);
-      setSelectedSpotifyPlaylistId(ownedPlaylists[0]?.id ?? "");
+      setSpotifyPlaylists(loaded);
+      setSelectedSpotifyPlaylistId(loaded[0]?.id ?? "");
       setSpotifyStatus(
-        `Loaded ${loaded.length} playlist(s); ${ownedPlaylists.length} owned by your account and importable.`
+        `Loaded ${loaded.length} playlist(s).`
       );
     } catch (error) {
       setSpotifyStatus(
