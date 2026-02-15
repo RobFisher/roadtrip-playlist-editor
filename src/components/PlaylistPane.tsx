@@ -12,6 +12,7 @@ interface PlaylistPaneProps {
   importSpotifyValue: string;
   onUpdatePanePlaylist: (paneIndex: number, playlistId: string) => void;
   onDeleteSelectedFromPlaylist: (playlistId: string) => void;
+  onOpenSpotifyExport: (paneIndex: number) => void;
   onRemovePane: (paneIndex: number) => void;
   onPaneDrop: (
     event: React.DragEvent<HTMLElement>,
@@ -49,6 +50,7 @@ export function PlaylistPane({
   importSpotifyValue,
   onUpdatePanePlaylist,
   onDeleteSelectedFromPlaylist,
+  onOpenSpotifyExport,
   onRemovePane,
   onPaneDrop,
   onDropSlotDragOver,
@@ -154,6 +156,11 @@ export function PlaylistPane({
           />
         </li>
       </ul>
+      <div className="pane-footer">
+        <button className="pane-export" onClick={() => onOpenSpotifyExport(paneIndex)}>
+          Export to Spotify...
+        </button>
+      </div>
     </article>
   );
 }

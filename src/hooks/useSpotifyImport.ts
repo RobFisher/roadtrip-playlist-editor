@@ -25,6 +25,7 @@ interface UseSpotifyImportResult {
   spotifyImportDialogPaneIndex: number | null;
   spotifyStatus: string | null;
   spotifyDebugCurlCommands: string;
+  setSpotifyStatusMessage: React.Dispatch<React.SetStateAction<string | null>>;
   setSelectedSpotifyPlaylistId: React.Dispatch<React.SetStateAction<string>>;
   openSpotifyImportDialog: (paneIndex: number) => void;
   closeSpotifyImportDialog: () => void;
@@ -232,6 +233,7 @@ export function useSpotifyImport({
     spotifyImportDialogPaneIndex,
     spotifyStatus,
     spotifyDebugCurlCommands,
+    setSpotifyStatusMessage: setSpotifyStatus,
     setSelectedSpotifyPlaylistId,
     openSpotifyImportDialog,
     closeSpotifyImportDialog,

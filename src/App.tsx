@@ -9,11 +9,13 @@ import { parseProjectState, serializeProjectState } from "./projectPersistence.j
 import { NewPlaylistDialog } from "./components/NewPlaylistDialog.js";
 import { PlaylistPane } from "./components/PlaylistPane.js";
 import { SaveProjectDialog } from "./components/SaveProjectDialog.js";
+import { SpotifyExportDialog } from "./components/SpotifyExportDialog.js";
 import { SpotifyImportDialog } from "./components/SpotifyImportDialog.js";
 import { WorkspaceHeader } from "./components/WorkspaceHeader.js";
 import { useSpotifyAuth } from "./hooks/useSpotifyAuth.js";
 import { usePaneDragDrop } from "./hooks/usePaneDragDrop.js";
 import { useSpotifyImport } from "./hooks/useSpotifyImport.js";
+import { addItemsToSpotifyPlaylist, createSpotifyPlaylist } from "./spotify.js";
 
 const initialPanePlaylistIds = seedProjectData.playlists.slice(0, 3).map((p) => p.id);
 const NEW_PLAYLIST_VALUE = "__new_playlist__";
@@ -62,6 +64,11 @@ export function App() {
   const [newPlaylistName, setNewPlaylistName] = useState("");
   const [saveProjectDialogOpen, setSaveProjectDialogOpen] = useState(false);
   const [projectName, setProjectName] = useState("Untitled Project");
+  const [spotifyExportDialogPaneIndex, setSpotifyExportDialogPaneIndex] = useState<
+    number | null
+  >(null);
+  const [spotifyExportPlaylistName, setSpotifyExportPlaylistName] = useState("");
+  const [spotifyExportLoading, setSpotifyExportLoading] = useState(false);
   const {
     spotifyToken,
     spotifyAuthError,
@@ -96,6 +103,7 @@ export function App() {
     spotifyImportDialogPaneIndex,
     spotifyStatus,
     spotifyDebugCurlCommands,
+    setSpotifyStatusMessage,
     setSelectedSpotifyPlaylistId,
     openSpotifyImportDialog,
     closeSpotifyImportDialog,
@@ -113,6 +121,34 @@ export function App() {
     buildUniquePlaylistId
   });
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
+
+  const spotifyConnected = Boolean(spotifyToken);
+  const spotifyBusy = spotifyLoading || spotifyExportLoading;
+
+  const spotifyExportSourcePlaylist = useMemo(() => {
+    if (spotifyExportDialogPaneIndex === null) {
+      return null;
+    }
+    const playlistId = panePlaylistIds[spotifyExportDialogPaneIndex];
+    return playlists.find((playlist) => playlist.id === playlistId) ?? null;
+  }, [panePlaylistIds, playlists, spotifyExportDialogPaneIndex]);
+
+  const spotifyExportableSongUris = useMemo(() => {
+    if (!spotifyExportSourcePlaylist) {
+      return [] as string[];
+    }
+    const seenUris = new Set<string>();
+    const uris: string[] = [];
+    spotifyExportSourcePlaylist.songIds.forEach((songId) => {
+      const uri = songsById.get(songId)?.spotifyUri?.trim() ?? "";
+      if (!uri || seenUris.has(uri)) {
+        return;
+      }
+      seenUris.add(uri);
+      uris.push(uri);
+    });
+    return uris;
+  }, [songsById, spotifyExportSourcePlaylist]);
 
   function addPane(): void {
     if (!availableForNewPane) {
@@ -141,6 +177,80 @@ export function App() {
         paneIndex === index ? playlistId : currentId
       )
     );
+  }
+
+  function openSpotifyExportDialog(paneIndex: number): void {
+    const selectedPlaylistId = panePlaylistIds[paneIndex];
+    const selectedPlaylist = playlists.find((playlist) => playlist.id === selectedPlaylistId);
+    const defaultName = selectedPlaylist
+      ? `${selectedPlaylist.name} (Roadtrip Export)`
+      : "Roadtrip Export";
+    setSpotifyExportPlaylistName(defaultName);
+    setSpotifyExportDialogPaneIndex(paneIndex);
+  }
+
+  function closeSpotifyExportDialog(): void {
+    if (spotifyExportLoading) {
+      return;
+    }
+    setSpotifyExportDialogPaneIndex(null);
+  }
+
+  async function exportActivePaneToSpotify(): Promise<void> {
+    if (!spotifyToken || !spotifyExportSourcePlaylist) {
+      setSpotifyStatusMessage("Connect Spotify before exporting.");
+      return;
+    }
+
+    const trimmedPlaylistName = normalizePlaylistName(spotifyExportPlaylistName);
+    if (!trimmedPlaylistName) {
+      setSpotifyStatusMessage("Spotify playlist name is required.");
+      return;
+    }
+
+    if (spotifyExportableSongUris.length === 0) {
+      setSpotifyStatusMessage(
+        `Pane ${spotifyExportDialogPaneIndex !== null ? spotifyExportDialogPaneIndex + 1 : ""} has no songs with Spotify URI, so nothing can be exported.`
+      );
+      return;
+    }
+
+    setSpotifyExportLoading(true);
+    setSpotifyStatusMessage(`Exporting "${trimmedPlaylistName}" to Spotify...`);
+
+    try {
+      const createdPlaylist = await createSpotifyPlaylist(spotifyToken, {
+        name: trimmedPlaylistName,
+        description: `Exported from Roadtrip Playlist Pane Editor (${new Date().toISOString()})`,
+        isPublic: false
+      });
+      await addItemsToSpotifyPlaylist(
+        spotifyToken,
+        createdPlaylist.id,
+        spotifyExportableSongUris
+      );
+      setSpotifyStatusMessage(
+        `Exported ${spotifyExportableSongUris.length} song(s) to Spotify playlist "${createdPlaylist.name}".${
+          createdPlaylist.externalUrl ? ` ${createdPlaylist.externalUrl}` : ""
+        }`
+      );
+      setSpotifyExportDialogPaneIndex(null);
+    } catch (error) {
+      setSpotifyStatusMessage(
+        error instanceof Error ? error.message : "Failed to export playlist to Spotify."
+      );
+    } finally {
+      setSpotifyExportLoading(false);
+    }
+  }
+
+  function toggleSpotifyConnection(): void {
+    if (spotifyConnected) {
+      disconnectSpotifyImport();
+      setSpotifyStatusMessage("Disconnected Spotify.");
+      return;
+    }
+    void connectSpotify();
   }
 
   function createPlaylistFromDialog(): void {
@@ -266,12 +376,15 @@ export function App() {
         projectName={projectName}
         canAddPane={Boolean(availableForNewPane)}
         dragModeLabel={dragModeLabel}
+        spotifyConnected={spotifyConnected}
+        spotifyBusy={spotifyBusy}
         spotifyAuthError={spotifyAuthError}
         spotifyStatus={spotifyStatus}
         projectStatus={projectStatus}
         onAddPane={addPane}
         onSaveProject={openSaveProjectDialog}
         onLoadProject={openLoadProjectPicker}
+        onToggleSpotifyConnection={toggleSpotifyConnection}
       />
       <input
         ref={loadProjectInputRef}
@@ -302,6 +415,7 @@ export function App() {
               importSpotifyValue={IMPORT_SPOTIFY_VALUE}
               onUpdatePanePlaylist={updatePanePlaylist}
               onDeleteSelectedFromPlaylist={deleteSelectedFromPlaylist}
+              onOpenSpotifyExport={openSpotifyExportDialog}
               onRemovePane={removePane}
               onPaneDrop={onPaneDrop}
               onDropSlotDragOver={onDropSlotDragOver}
@@ -341,12 +455,22 @@ export function App() {
         spotifyUserId={spotifyUserId}
         spotifyDebugCurlCommands={spotifyDebugCurlCommands}
         onClose={closeSpotifyImportDialog}
-        onConnectSpotify={connectSpotify}
-        onDisconnectSpotify={disconnectSpotifyImport}
         onRefreshPlaylists={loadSpotifyPlaylists}
         onImportSelected={importSelectedSpotifyPlaylist}
         onPlaylistSelect={setSelectedSpotifyPlaylistId}
         onCopyDebugCurl={copySpotifyDebugCurl}
+      />
+      <SpotifyExportDialog
+        isOpen={spotifyExportDialogPaneIndex !== null}
+        paneIndex={spotifyExportDialogPaneIndex}
+        playlistName={spotifyExportPlaylistName}
+        exportableSongs={spotifyExportableSongUris.length}
+        totalSongs={spotifyExportSourcePlaylist?.songIds.length ?? 0}
+        spotifyConnected={spotifyConnected}
+        exporting={spotifyExportLoading}
+        onClose={closeSpotifyExportDialog}
+        onPlaylistNameChange={setSpotifyExportPlaylistName}
+        onExport={exportActivePaneToSpotify}
       />
     </main>
   );

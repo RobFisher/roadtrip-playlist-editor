@@ -10,8 +10,6 @@ interface SpotifyImportDialogProps {
   spotifyUserId: string | null;
   spotifyDebugCurlCommands: string;
   onClose: () => void;
-  onConnectSpotify: () => Promise<void>;
-  onDisconnectSpotify: () => void;
   onRefreshPlaylists: () => Promise<void>;
   onImportSelected: () => Promise<void>;
   onPlaylistSelect: (playlistId: string) => void;
@@ -28,8 +26,6 @@ export function SpotifyImportDialog({
   spotifyUserId,
   spotifyDebugCurlCommands,
   onClose,
-  onConnectSpotify,
-  onDisconnectSpotify,
   onRefreshPlaylists,
   onImportSelected,
   onPlaylistSelect,
@@ -47,14 +43,11 @@ export function SpotifyImportDialog({
         {!spotifyToken ? (
           <>
             <p className="modal-support">
-              Connect Spotify first to load your playlists.
+              Connect Spotify from the main header to load your playlists.
             </p>
             <div className="modal-actions">
               <button className="modal-cancel" onClick={onClose}>
                 Cancel
-              </button>
-              <button className="modal-create" onClick={() => void onConnectSpotify()}>
-                Connect Spotify
               </button>
             </div>
           </>
@@ -92,9 +85,6 @@ export function SpotifyImportDialog({
                 disabled={spotifyLoading}
               >
                 Refresh List
-              </button>
-              <button className="modal-cancel" onClick={onDisconnectSpotify}>
-                Disconnect
               </button>
               <button
                 className="modal-create"

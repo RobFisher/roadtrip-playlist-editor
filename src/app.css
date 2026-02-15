@@ -62,6 +62,14 @@ body {
   cursor: not-allowed;
 }
 
+.workspace-actions .spotify-connected {
+  background: #1f8d4f;
+}
+
+.workspace-actions .spotify-disconnected {
+  background: #2f4f87;
+}
+
 .drag-mode-indicator {
   font-size: 0.85rem;
   color: #304765;
@@ -118,6 +126,20 @@ body {
 .pane-delete:disabled,
 .pane-remove:disabled {
   opacity: 0.55;
+}
+
+.pane-footer {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.pane-export {
+  border: 1px solid #c8d2e2;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #f7f9fc;
+  font-weight: 600;
 }
 
 .song-list {

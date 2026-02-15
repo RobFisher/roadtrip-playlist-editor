@@ -2,7 +2,9 @@ const AUTH_BASE_URL = "https://accounts.spotify.com";
 const API_BASE_URL = "https://api.spotify.com/v1";
 export const REQUIRED_SPOTIFY_SCOPES = [
   "playlist-read-private",
-  "playlist-read-collaborative"
+  "playlist-read-collaborative",
+  "playlist-modify-private",
+  "playlist-modify-public"
 ] as const;
 
 export interface SpotifyTokenResponse {
@@ -111,6 +113,42 @@ async function spotifyGet<T>(path: string, accessToken: string): Promise<T> {
     headers: {
       Authorization: `Bearer ${accessToken}`
     }
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    let detail = text;
+    try {
+      const parsed = JSON.parse(text) as {
+        error?: { status?: number; message?: string };
+        error_description?: string;
+      };
+      if (parsed.error?.message) {
+        detail = parsed.error.message;
+      } else if (parsed.error_description) {
+        detail = parsed.error_description;
+      }
+    } catch {
+      // Keep raw response text when it is not JSON.
+    }
+    throw new Error(`Spotify request failed (${response.status}): ${detail}`);
+  }
+
+  return (await response.json()) as T;
+}
+
+async function spotifyPost<T>(
+  path: string,
+  accessToken: string,
+  body: unknown
+): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
   });
 
   if (!response.ok) {
@@ -258,4 +296,48 @@ export async function getPlaylistItems(
 export function hasRequiredScopes(grantedScope: string, requiredScopes: string[]): boolean {
   const granted = new Set(grantedScope.split(" ").map((scope) => scope.trim()).filter(Boolean));
   return requiredScopes.every((scope) => granted.has(scope));
+}
+
+export async function createSpotifyPlaylist(
+  accessToken: string,
+  payload: {
+    name: string;
+    description?: string;
+    isPublic: boolean;
+  }
+): Promise<{ id: string; name: string; externalUrl: string | null }> {
+  const created = await spotifyPost<{
+    id: string;
+    name: string;
+    external_urls?: { spotify?: string };
+  }>("/me/playlists", accessToken, {
+    name: payload.name,
+    description: payload.description ?? "",
+    public: payload.isPublic
+  });
+
+  return {
+    id: created.id,
+    name: created.name,
+    externalUrl: created.external_urls?.spotify ?? null
+  };
+}
+
+export async function addItemsToSpotifyPlaylist(
+  accessToken: string,
+  playlistId: string,
+  uris: string[]
+): Promise<void> {
+  if (uris.length === 0) {
+    return;
+  }
+
+  for (let index = 0; index < uris.length; index += 100) {
+    const batch = uris.slice(index, index + 100);
+    await spotifyPost<{ snapshot_id: string }>(
+      `/playlists/${encodeURIComponent(playlistId)}/items`,
+      accessToken,
+      { uris: batch }
+    );
+  }
 }
