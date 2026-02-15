@@ -1,5 +1,8 @@
 # Agent Instructions
 
+## General rules
+Third party APIs seem to change often -- double check official docs; avoid deprecated APIs.
+
 ## Dependency Management Policy
 
 - Do not upgrade npm dependencies unless the user explicitly requests it.
