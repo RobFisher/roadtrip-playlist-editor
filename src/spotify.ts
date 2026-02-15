@@ -135,14 +135,6 @@ async function spotifyGet<T>(path: string, accessToken: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function spotifyGetOrNull<T>(path: string, accessToken: string): Promise<T | null> {
-  try {
-    return await spotifyGet<T>(path, accessToken);
-  } catch {
-    return null;
-  }
-}
-
 export async function getCurrentUserPlaylists(
   accessToken: string
 ): Promise<SpotifyPlaylistSummary[]> {
@@ -179,30 +171,7 @@ export async function getCurrentUserPlaylists(
     nextPath = `${nextUrl.pathname.replace("/v1", "")}${nextUrl.search}`;
   }
 
-  // Resolve track totals from playlist detail endpoint; this avoids cases where
-  // simplified list payloads do not provide reliable totals.
-  const totals = await Promise.all(
-    playlists.map(async (playlist) => {
-      const detail = await spotifyGetOrNull<{ tracks?: { total?: number } }>(
-        `/playlists/${encodeURIComponent(playlist.id)}?fields=tracks(total)`,
-        accessToken
-      );
-      return {
-        id: playlist.id,
-        total: detail?.tracks?.total
-      };
-    })
-  );
-  const totalById = new Map(
-    totals
-      .filter((entry): entry is { id: string; total: number } => typeof entry.total === "number")
-      .map((entry) => [entry.id, entry.total])
-  );
-
-  return playlists.map((playlist) => ({
-    ...playlist,
-    tracksTotal: totalById.get(playlist.id) ?? playlist.tracksTotal
-  }));
+  return playlists;
 }
 
 export async function getCurrentUserProfile(
@@ -221,39 +190,54 @@ export async function getPlaylistTracks(
 ): Promise<SpotifyTrackSummary[]> {
   type TracksResponse = {
     items: Array<{
+      is_local?: boolean;
       track: null | {
         id: string | null;
-        name: string;
-        uri: string;
-        artists: Array<{ name: string }>;
-        album: { images?: Array<{ url: string }> };
+        name?: string;
+        uri?: string;
+        artists?: Array<{ name?: string }>;
+        album?: { images?: Array<{ url?: string }> };
       };
     }>;
     next: string | null;
   };
 
   const tracks: SpotifyTrackSummary[] = [];
+  const seenTrackIds = new Set<string>();
   let nextPath = `/playlists/${encodeURIComponent(playlistId)}/items?limit=100`;
 
   while (nextPath) {
     const page = await spotifyGet<TracksResponse>(nextPath, accessToken);
-    tracks.push(
-      ...page.items
-        .filter((item) => item.track)
-        .map((item) => {
-          const track = item.track as NonNullable<typeof item.track>;
-          const canonicalId =
-            track.id ??
-            track.uri.replace("spotify:", "spotify_").replaceAll(":", "_");
-          return {
-            id: canonicalId,
-            title: track.name,
-            artists: track.artists.map((artist) => artist.name).join(", "),
-            artworkUrl: track.album.images?.[0]?.url ?? "",
-            spotifyUri: track.uri
-          };
-        })
-    );
+    page.items.forEach((item, index) => {
+      const track = item.track;
+      if (!track) {
+        return;
+      }
+
+      const spotifyUri = track.uri ?? "";
+      const fallbackFromUri = spotifyUri
+        ? spotifyUri.replace("spotify:", "spotify_").replace(/:/g, "_")
+        : `playlist_${playlistId}_item_${tracks.length + index + 1}`;
+      const canonicalId = track.id ?? fallbackFromUri;
+      if (seenTrackIds.has(canonicalId)) {
+        return;
+      }
+      seenTrackIds.add(canonicalId);
+
+      const artistNames =
+        track.artists
+          ?.map((artist) => artist.name?.trim() ?? "")
+          .filter((name) => name.length > 0)
+          .join(", ") ?? "";
+
+      tracks.push({
+        id: canonicalId,
+        title: track.name?.trim() || "Unknown title",
+        artists: artistNames || "Unknown artist",
+        artworkUrl: track.album?.images?.[0]?.url ?? "",
+        spotifyUri
+      });
+    });
 
     if (!page.next) {
       break;

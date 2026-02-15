@@ -75,6 +75,7 @@ export function App() {
   const [spotifyImportDialogPaneIndex, setSpotifyImportDialogPaneIndex] = useState<number | null>(
     null
   );
+  const [spotifyAutoLoadTriggered, setSpotifyAutoLoadTriggered] = useState(false);
   const [spotifyStatus, setSpotifyStatus] = useState<string | null>(null);
 
   const songsById = useMemo(() => {
@@ -200,6 +201,7 @@ export function App() {
     }
     if (playlistId === IMPORT_SPOTIFY_VALUE) {
       setSpotifyImportDialogPaneIndex(index);
+      setSpotifyAutoLoadTriggered(false);
       return;
     }
 
@@ -258,6 +260,7 @@ export function App() {
     setSpotifyPlaylists([]);
     setSelectedSpotifyPlaylistId("");
     setSpotifyUserId(null);
+    setSpotifyAutoLoadTriggered(false);
     localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_KEY);
     localStorage.removeItem(SPOTIFY_ACCESS_TOKEN_EXPIRES_AT_KEY);
   }
@@ -266,14 +269,14 @@ export function App() {
     if (
       spotifyImportDialogPaneIndex === null ||
       !spotifyToken ||
-      spotifyPlaylists.length > 0 ||
-      spotifyLoading
+      spotifyAutoLoadTriggered
     ) {
       return;
     }
 
+    setSpotifyAutoLoadTriggered(true);
     void loadSpotifyPlaylists();
-  }, [spotifyImportDialogPaneIndex, spotifyLoading, spotifyPlaylists.length, spotifyToken]);
+  }, [spotifyAutoLoadTriggered, spotifyImportDialogPaneIndex, spotifyToken]);
 
   async function loadSpotifyPlaylists(): Promise<void> {
     if (!spotifyToken) {
@@ -396,6 +399,7 @@ export function App() {
         `Imported ${tracks.length} song(s) from "${selected.name}" into pane ${spotifyImportDialogPaneIndex + 1}.`
       );
       setSpotifyImportDialogPaneIndex(null);
+      setSpotifyAutoLoadTriggered(false);
     } catch (error) {
       if (error instanceof Error && error.message.includes("403")) {
         setSpotifyStatus(
@@ -703,7 +707,10 @@ export function App() {
                 <div className="modal-actions">
                   <button
                     className="modal-cancel"
-                    onClick={() => setSpotifyImportDialogPaneIndex(null)}
+                    onClick={() => {
+                      setSpotifyImportDialogPaneIndex(null);
+                      setSpotifyAutoLoadTriggered(false);
+                    }}
                   >
                     Cancel
                   </button>
@@ -738,7 +745,10 @@ export function App() {
                 <div className="modal-actions">
                   <button
                     className="modal-cancel"
-                    onClick={() => setSpotifyImportDialogPaneIndex(null)}
+                    onClick={() => {
+                      setSpotifyImportDialogPaneIndex(null);
+                      setSpotifyAutoLoadTriggered(false);
+                    }}
                   >
                     Cancel
                   </button>
