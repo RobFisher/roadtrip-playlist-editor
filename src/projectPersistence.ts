@@ -5,6 +5,7 @@ export const PROJECT_SCHEMA_VERSION = "roadtrip-playlist-project.v1";
 export interface PersistedProjectV1 {
   schemaVersion: typeof PROJECT_SCHEMA_VERSION;
   exportedAt: string;
+  projectName?: string;
   songs: Song[];
   playlists: Playlist[];
   panePlaylistIds: string[];
@@ -76,13 +77,16 @@ function validatePlaylists(playlists: unknown): Playlist[] {
 }
 
 export function serializeProjectState(
+  projectName: string,
   songs: Song[],
   playlists: Playlist[],
   panePlaylistIds: string[]
 ): PersistedProjectV1 {
+  const normalizedProjectName = projectName.trim();
   return {
     schemaVersion: PROJECT_SCHEMA_VERSION,
     exportedAt: new Date().toISOString(),
+    projectName: normalizedProjectName || undefined,
     songs,
     playlists,
     panePlaylistIds
@@ -148,6 +152,10 @@ export function parseProjectState(raw: string): PersistedProjectV1 {
   return {
     schemaVersion: PROJECT_SCHEMA_VERSION,
     exportedAt: typeof parsed.exportedAt === "string" ? parsed.exportedAt : "",
+    projectName:
+      typeof parsed.projectName === "string" && parsed.projectName.trim()
+        ? parsed.projectName.trim()
+        : undefined,
     songs,
     playlists,
     panePlaylistIds: parsed.panePlaylistIds

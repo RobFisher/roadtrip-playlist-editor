@@ -8,6 +8,7 @@ import {
 import { parseProjectState, serializeProjectState } from "./projectPersistence.js";
 import { NewPlaylistDialog } from "./components/NewPlaylistDialog.js";
 import { PlaylistPane } from "./components/PlaylistPane.js";
+import { SaveProjectDialog } from "./components/SaveProjectDialog.js";
 import { SpotifyImportDialog } from "./components/SpotifyImportDialog.js";
 import { WorkspaceHeader } from "./components/WorkspaceHeader.js";
 import { useSpotifyAuth } from "./hooks/useSpotifyAuth.js";
@@ -20,6 +21,18 @@ const IMPORT_SPOTIFY_VALUE = "__import_spotify__";
 
 function normalizePlaylistName(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function normalizeProjectName(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function toFilenameSlug(projectName: string): string {
+  const normalized = normalizeProjectName(projectName)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || "project";
 }
 
 function buildUniquePlaylistId(existingPlaylists: Playlist[], base: string): string {
@@ -47,6 +60,8 @@ export function App() {
     null
   );
   const [newPlaylistName, setNewPlaylistName] = useState("");
+  const [saveProjectDialogOpen, setSaveProjectDialogOpen] = useState(false);
+  const [projectName, setProjectName] = useState("Untitled Project");
   const {
     spotifyToken,
     spotifyAuthError,
@@ -176,7 +191,18 @@ export function App() {
   }
 
   function saveProjectToFile(): void {
-    const payload = serializeProjectState(songs, playlists, panePlaylistIds);
+    const normalizedName = normalizeProjectName(projectName);
+    if (!normalizedName) {
+      setProjectStatus("Project name is required to save.");
+      return;
+    }
+
+    const payload = serializeProjectState(
+      normalizedName,
+      songs,
+      playlists,
+      panePlaylistIds
+    );
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: "application/json"
     });
@@ -184,13 +210,19 @@ export function App() {
     const anchor = document.createElement("a");
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     anchor.href = url;
-    anchor.download = `roadtrip-project-${timestamp}.json`;
+    anchor.download = `roadtrip-project-${toFilenameSlug(normalizedName)}-${timestamp}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
-    setProjectStatus(`Saved project with ${playlists.length} playlist(s).`);
+    setProjectStatus(`Saved "${normalizedName}" with ${playlists.length} playlist(s).`);
+    setSaveProjectDialogOpen(false);
   }
 
-  function openProjectPicker(): void {
+  function openSaveProjectDialog(): void {
+    setProjectName((prev) => normalizeProjectName(prev) || "Untitled Project");
+    setSaveProjectDialogOpen(true);
+  }
+
+  function openLoadProjectPicker(): void {
     if (!loadProjectInputRef.current) {
       return;
     }
@@ -212,11 +244,12 @@ export function App() {
       setSongs(parsed.songs);
       setPlaylists(parsed.playlists);
       setPanePlaylistIds(parsed.panePlaylistIds);
+      setProjectName(parsed.projectName ?? "Untitled Project");
       setSelectedSong(null);
       setNewPlaylistDialogPaneIndex(null);
       closeSpotifyImportDialog();
       setProjectStatus(
-        `Loaded project with ${parsed.playlists.length} playlist(s) into ${parsed.panePlaylistIds.length} pane(s).`
+        `Loaded "${parsed.projectName ?? "Untitled Project"}" with ${parsed.playlists.length} playlist(s) into ${parsed.panePlaylistIds.length} pane(s).`
       );
     } catch (error) {
       setProjectStatus(
@@ -230,14 +263,15 @@ export function App() {
   return (
     <main className="workspace">
       <WorkspaceHeader
+        projectName={projectName}
         canAddPane={Boolean(availableForNewPane)}
         dragModeLabel={dragModeLabel}
         spotifyAuthError={spotifyAuthError}
         spotifyStatus={spotifyStatus}
         projectStatus={projectStatus}
         onAddPane={addPane}
-        onSaveProject={saveProjectToFile}
-        onLoadProject={openProjectPicker}
+        onSaveProject={openSaveProjectDialog}
+        onLoadProject={openLoadProjectPicker}
       />
       <input
         ref={loadProjectInputRef}
@@ -289,6 +323,13 @@ export function App() {
           setNewPlaylistDialogPaneIndex(null);
           setNewPlaylistName("");
         }}
+      />
+      <SaveProjectDialog
+        isOpen={saveProjectDialogOpen}
+        projectName={projectName}
+        onProjectNameChange={setProjectName}
+        onSave={saveProjectToFile}
+        onCancel={() => setSaveProjectDialogOpen(false)}
       />
       <SpotifyImportDialog
         isOpen={spotifyImportDialogPaneIndex !== null}

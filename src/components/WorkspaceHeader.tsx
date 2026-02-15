@@ -1,4 +1,5 @@
 interface WorkspaceHeaderProps {
+  projectName: string;
   canAddPane: boolean;
   dragModeLabel: "copy" | "move";
   spotifyAuthError: string | null;
@@ -10,6 +11,7 @@ interface WorkspaceHeaderProps {
 }
 
 export function WorkspaceHeader({
+  projectName,
   canAddPane,
   dragModeLabel,
   spotifyAuthError,
@@ -28,6 +30,7 @@ export function WorkspaceHeader({
           Drag songs between playlist panes. Default: copy. Hold Shift while dragging
           to move.
         </p>
+        <p className="subtitle">Project: {projectName || "Untitled"}</p>
       </div>
       <div className="workspace-actions">
         <button onClick={onAddPane} disabled={!canAddPane}>

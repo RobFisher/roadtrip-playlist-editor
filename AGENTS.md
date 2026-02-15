@@ -20,6 +20,7 @@ Third party APIs seem to change often -- double check official docs; avoid depre
 - `src/components/WorkspaceHeader.tsx`: Header section with add-pane action and status indicators.
 - `src/components/PlaylistPane.tsx`: Single pane UI (playlist selector, delete/remove actions, song list rendering, drag/drop slots/cards).
 - `src/components/NewPlaylistDialog.tsx`: Modal for creating a new playlist name.
+- `src/components/SaveProjectDialog.tsx`: Modal for entering/editing project name before saving local project JSON.
 - `src/components/SpotifyImportDialog.tsx`: Modal for Spotify connect/list/select/import and optional dev-only curl debug panel.
 - `src/hooks/useSpotifyAuth.ts`: Encapsulates Spotify PKCE auth lifecycle for the browser app (connect redirect, callback token exchange, scope validation, token persistence/expiry, disconnect cleanup).
 - `src/hooks/usePaneDragDrop.ts`: Encapsulates pane/song drag-and-drop state and handlers (drag mode label, drop target, payload transfer, copy/move drop application).
