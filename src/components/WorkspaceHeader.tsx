@@ -45,22 +45,26 @@ export function WorkspaceHeader({
         </p>
       </div>
       <div className="workspace-actions">
-        <button onClick={onAddPane} disabled={!canAddPane}>
-          Add Pane
-        </button>
-        <button onClick={onSaveProject}>Save Project</button>
-        <button onClick={onLoadProject}>Load Project</button>
-        <button
-          className={spotifyConnected ? "spotify-connected" : "spotify-disconnected"}
-          onClick={onToggleSpotifyConnection}
-          disabled={spotifyBusy}
-        >
-          {spotifyConnected ? "Disconnect Spotify" : "Connect Spotify"}
-        </button>
-        <span className="drag-mode-indicator">Current drag mode: {dragModeLabel}</span>
-        {spotifyAuthError && <span className="status-error">{spotifyAuthError}</span>}
-        {spotifyStatus && <span className="status-info">{spotifyStatus}</span>}
-        {projectStatus && <span className="status-info">{projectStatus}</span>}
+        <div className="workspace-primary-actions">
+          <button onClick={onAddPane} disabled={!canAddPane}>
+            Add Pane
+          </button>
+          <button onClick={onSaveProject}>Save Project</button>
+          <button onClick={onLoadProject}>Load Project</button>
+          <button
+            className={spotifyConnected ? "spotify-connected" : "spotify-disconnected"}
+            onClick={onToggleSpotifyConnection}
+            disabled={spotifyBusy}
+          >
+            {spotifyConnected ? "Disconnect Spotify" : "Connect Spotify"}
+          </button>
+        </div>
+        <div className="workspace-status-lines">
+          <span className="drag-mode-indicator">Current drag mode: {dragModeLabel}</span>
+          {spotifyAuthError && <span className="status-error">{spotifyAuthError}</span>}
+          {spotifyStatus && <span className="status-info">{spotifyStatus}</span>}
+          {projectStatus && <span className="status-info">{projectStatus}</span>}
+        </div>
       </div>
     </header>
   );

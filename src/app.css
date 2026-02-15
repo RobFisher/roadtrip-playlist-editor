@@ -39,6 +39,12 @@ body {
   gap: 8px;
 }
 
+.workspace-primary-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .workspace-actions button {
   border: none;
   border-radius: 10px;
@@ -68,6 +74,12 @@ body {
 
 .workspace-actions .spotify-disconnected {
   background: #2f4f87;
+}
+
+.workspace-status-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .drag-mode-indicator {
