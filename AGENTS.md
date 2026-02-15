@@ -22,6 +22,7 @@ Third party APIs seem to change often -- double check official docs; avoid depre
 - `src/components/SpotifyImportDialog.tsx`: Modal for Spotify connect/list/select/import and optional dev-only curl debug panel.
 - `src/hooks/useSpotifyAuth.ts`: Encapsulates Spotify PKCE auth lifecycle for the browser app (connect redirect, callback token exchange, scope validation, token persistence/expiry, disconnect cleanup).
 - `src/hooks/usePaneDragDrop.ts`: Encapsulates pane/song drag-and-drop state and handlers (drag mode label, drop target, payload transfer, copy/move drop application).
+- `src/hooks/useSpotifyImport.ts`: Encapsulates Spotify playlist import workflow state/logic (dialog state, playlist loading, import action, status, dev curl debug generation).
 
 ## Refactor Convention
 

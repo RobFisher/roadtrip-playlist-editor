@@ -1,22 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import "./app.css";
 import {
   removeSongFromPlaylist,
   seedProjectData,
   type Playlist
 } from "./playlistModel.js";
-import {
-  getCurrentUserProfile,
-  getCurrentUserPlaylists,
-  getPlaylistTracks,
-  type SpotifyPlaylistSummary
-} from "./spotify.js";
 import { NewPlaylistDialog } from "./components/NewPlaylistDialog.js";
 import { PlaylistPane } from "./components/PlaylistPane.js";
 import { SpotifyImportDialog } from "./components/SpotifyImportDialog.js";
 import { WorkspaceHeader } from "./components/WorkspaceHeader.js";
 import { useSpotifyAuth } from "./hooks/useSpotifyAuth.js";
 import { usePaneDragDrop } from "./hooks/usePaneDragDrop.js";
+import { useSpotifyImport } from "./hooks/useSpotifyImport.js";
 
 const initialPanePlaylistIds = seedProjectData.playlists.slice(0, 3).map((p) => p.id);
 const NEW_PLAYLIST_VALUE = "__new_playlist__";
@@ -56,15 +51,6 @@ export function App() {
     connectSpotify,
     disconnectSpotify: disconnectSpotifyAuth
   } = useSpotifyAuth();
-  const [spotifyPlaylists, setSpotifyPlaylists] = useState<SpotifyPlaylistSummary[]>([]);
-  const [spotifyUserId, setSpotifyUserId] = useState<string | null>(null);
-  const [spotifyLoading, setSpotifyLoading] = useState(false);
-  const [selectedSpotifyPlaylistId, setSelectedSpotifyPlaylistId] = useState<string>("");
-  const [spotifyImportDialogPaneIndex, setSpotifyImportDialogPaneIndex] = useState<number | null>(
-    null
-  );
-  const [spotifyAutoLoadTriggered, setSpotifyAutoLoadTriggered] = useState(false);
-  const [spotifyStatus, setSpotifyStatus] = useState<string | null>(null);
   const {
     dragModeLabel,
     dropTarget,
@@ -85,18 +71,30 @@ export function App() {
   const availableForNewPane = playlists.find(
     (playlist) => !panePlaylistIds.includes(playlist.id)
   );
-  const spotifyDebugCurlCommands = useMemo(() => {
-    if (!spotifyToken) {
-      return "";
-    }
-
-    const playlistId = selectedSpotifyPlaylistId || "<playlist_id>";
-    return [
-      `curl -i -H "Authorization: Bearer ${spotifyToken}" "https://api.spotify.com/v1/me"`,
-      `curl -i -H "Authorization: Bearer ${spotifyToken}" "https://api.spotify.com/v1/me/playlists?limit=50"`,
-      `curl -i -H "Authorization: Bearer ${spotifyToken}" "https://api.spotify.com/v1/playlists/${encodeURIComponent(playlistId)}/items?limit=100"`
-    ].join("\n\n");
-  }, [selectedSpotifyPlaylistId, spotifyToken]);
+  const {
+    spotifyPlaylists,
+    spotifyUserId,
+    spotifyLoading,
+    selectedSpotifyPlaylistId,
+    spotifyImportDialogPaneIndex,
+    spotifyStatus,
+    spotifyDebugCurlCommands,
+    setSelectedSpotifyPlaylistId,
+    openSpotifyImportDialog,
+    closeSpotifyImportDialog,
+    loadSpotifyPlaylists,
+    importSelectedSpotifyPlaylist,
+    disconnectSpotifyImport,
+    copySpotifyDebugCurl
+  } = useSpotifyImport({
+    spotifyToken,
+    playlists,
+    setSongs,
+    setPlaylists,
+    setPanePlaylistIds,
+    onDisconnectAuth: disconnectSpotifyAuth,
+    buildUniquePlaylistId
+  });
 
   function addPane(): void {
     if (!availableForNewPane) {
@@ -116,8 +114,7 @@ export function App() {
       return;
     }
     if (playlistId === IMPORT_SPOTIFY_VALUE) {
-      setSpotifyImportDialogPaneIndex(index);
-      setSpotifyAutoLoadTriggered(false);
+      openSpotifyImportDialog(index);
       return;
     }
 
@@ -154,163 +151,6 @@ export function App() {
 
     setNewPlaylistDialogPaneIndex(null);
     setNewPlaylistName("");
-  }
-
-  function disconnectSpotify(): void {
-    disconnectSpotifyAuth();
-    setSpotifyPlaylists([]);
-    setSelectedSpotifyPlaylistId("");
-    setSpotifyUserId(null);
-    setSpotifyAutoLoadTriggered(false);
-  }
-
-  useEffect(() => {
-    if (
-      spotifyImportDialogPaneIndex === null ||
-      !spotifyToken ||
-      spotifyAutoLoadTriggered
-    ) {
-      return;
-    }
-
-    setSpotifyAutoLoadTriggered(true);
-    void loadSpotifyPlaylists();
-  }, [spotifyAutoLoadTriggered, spotifyImportDialogPaneIndex, spotifyToken]);
-
-  async function loadSpotifyPlaylists(): Promise<void> {
-    if (!spotifyToken) {
-      return;
-    }
-    setSpotifyLoading(true);
-    setSpotifyStatus("Loading Spotify playlists...");
-
-    try {
-      const [profile, loaded] = await Promise.all([
-        getCurrentUserProfile(spotifyToken),
-        getCurrentUserPlaylists(spotifyToken)
-      ]);
-      setSpotifyUserId(profile.id);
-      setSpotifyPlaylists(loaded);
-      setSelectedSpotifyPlaylistId(loaded[0]?.id ?? "");
-      setSpotifyStatus(
-        `Loaded ${loaded.length} playlist(s).`
-      );
-    } catch (error) {
-      setSpotifyStatus(
-        error instanceof Error ? error.message : "Failed to load Spotify playlists."
-      );
-    } finally {
-      setSpotifyLoading(false);
-    }
-  }
-
-  async function copySpotifyDebugCurl(): Promise<void> {
-    if (!spotifyDebugCurlCommands) {
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(spotifyDebugCurlCommands);
-      setSpotifyStatus("Copied Spotify cURL commands to clipboard.");
-    } catch {
-      setSpotifyStatus("Failed to copy cURL commands. Select and copy manually.");
-    }
-  }
-
-  async function importSelectedSpotifyPlaylist(): Promise<void> {
-    if (
-      !spotifyToken ||
-      !selectedSpotifyPlaylistId ||
-      spotifyImportDialogPaneIndex === null
-    ) {
-      return;
-    }
-
-    const selected = spotifyPlaylists.find((playlist) => playlist.id === selectedSpotifyPlaylistId);
-    if (!selected) {
-      return;
-    }
-
-    setSpotifyLoading(true);
-    setSpotifyStatus(`Importing "${selected.name}"...`);
-
-    try {
-      const tracks = await getPlaylistTracks(spotifyToken, selected.id);
-      if (tracks.length === 0) {
-        setSpotifyStatus(
-          `Imported 0 songs from "${selected.name}". The playlist may contain unavailable/local-only items for this token.`
-        );
-      }
-
-      const tracksByLocalSongId = new Map(
-        tracks.map((track) => [
-          `spotify:${track.id}`,
-          {
-            id: `spotify:${track.id}`,
-            title: track.title,
-            artist: track.artists,
-            artworkUrl: track.artworkUrl,
-            spotifyUri: track.spotifyUri
-          }
-        ])
-      );
-
-      setSongs((prevSongs) => {
-        const merged = [...prevSongs];
-        const existing = new Set(prevSongs.map((song) => song.id));
-        for (const [songId, song] of tracksByLocalSongId) {
-          if (!existing.has(songId)) {
-            merged.push(song);
-          }
-        }
-        return merged;
-      });
-
-      setPlaylists((prevPlaylists) => {
-        const uniquePlaylistId = buildUniquePlaylistId(
-          prevPlaylists,
-          `playlist-spotify-${selected.id}`
-        );
-
-        const importedSongIds: string[] = [];
-
-        for (const track of tracks) {
-          const localSongId = `spotify:${track.id}`;
-          importedSongIds.push(localSongId);
-        }
-
-        const importedPlaylist: Playlist = {
-          id: uniquePlaylistId,
-          name: `${selected.name} (Spotify)`,
-          songIds: importedSongIds
-        };
-
-        setPanePlaylistIds((prevPaneIds) =>
-          prevPaneIds.map((playlistId, paneIndex) =>
-            paneIndex === spotifyImportDialogPaneIndex ? importedPlaylist.id : playlistId
-          )
-        );
-
-        return [...prevPlaylists, importedPlaylist];
-      });
-
-      setSpotifyStatus(
-        `Imported ${tracks.length} song(s) from "${selected.name}" into pane ${spotifyImportDialogPaneIndex + 1}.`
-      );
-      setSpotifyImportDialogPaneIndex(null);
-      setSpotifyAutoLoadTriggered(false);
-    } catch (error) {
-      if (error instanceof Error && error.message.includes("403")) {
-        setSpotifyStatus(
-          `Spotify returned 403 while reading this playlist. ${error.message}. Ensure you are logged into the same Spotify account added in your app's user allowlist, then disconnect/reconnect and retry.`
-        );
-        return;
-      }
-      setSpotifyStatus(
-        error instanceof Error ? error.message : "Failed to import selected Spotify playlist."
-      );
-    } finally {
-      setSpotifyLoading(false);
-    }
   }
 
   function onSongClick(playlistId: string, songId: string): void {
@@ -394,12 +234,9 @@ export function App() {
         spotifyPlaylists={spotifyPlaylists}
         spotifyUserId={spotifyUserId}
         spotifyDebugCurlCommands={spotifyDebugCurlCommands}
-        onClose={() => {
-          setSpotifyImportDialogPaneIndex(null);
-          setSpotifyAutoLoadTriggered(false);
-        }}
+        onClose={closeSpotifyImportDialog}
         onConnectSpotify={connectSpotify}
-        onDisconnectSpotify={disconnectSpotify}
+        onDisconnectSpotify={disconnectSpotifyImport}
         onRefreshPlaylists={loadSpotifyPlaylists}
         onImportSelected={importSelectedSpotifyPlaylist}
         onPlaylistSelect={setSelectedSpotifyPlaylistId}
