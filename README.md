@@ -1,7 +1,13 @@
 # Rob's Road-trip Playlist Editor
 
-Milestones 0-1 bootstrap for the project: Nix-based CLI environment, React hello-world
-frontend, and CDK-based static deployment infrastructure.
+A local-first playlist workspace for comparing and editing multiple playlists at once.
+The UI shows multiple playlist panes side by side so you can drag songs between playlists,
+reorder tracks within a playlist, and quickly shape alternatives before exporting.
+
+Current status:
+- Milestones 0-2 are complete.
+- The app is useful now as a personal local editor (save/load project JSON files, Spotify import/export).
+- AWS deployment is currently optional because there is no backend or multi-user collaboration yet.
 
 ## Prerequisites
 
@@ -45,6 +51,14 @@ Dependency policy: avoid upgrading npm dependencies unless explicitly requested.
 
 The local dev server listens on `http://127.0.0.1:5173` by default.
 
+## What You Can Do Today
+
+- Open multiple playlist panes and switch which playlist each pane displays.
+- Drag songs between panes (copy or move) and reorder within a pane.
+- Create playlists and delete selected songs from a playlist.
+- Save/load project state locally as JSON.
+- Connect Spotify, import playlists, and export pane content to a new Spotify playlist.
+
 ## Spotify Setup (Local + Deployed)
 
 This app uses Spotify Authorization Code flow with PKCE in the browser.
@@ -66,6 +80,11 @@ Important:
 - Add the same redirect URI to your Spotify app settings.
 - Use `127.0.0.1` (not `localhost`) for the redirect URI.
 - Do not put Spotify client secret in frontend code. PKCE flow here uses only client ID.
+
+## AWS Deployment (Optional At This Stage)
+
+Deploying to AWS is useful for sharing a hosted frontend URL, but it is optional right now.
+There is no backend persistence or multi-user system yet, so local usage is fully supported.
 
 ## AWS Account Actions Required Before First Deploy
 
