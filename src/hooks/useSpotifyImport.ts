@@ -3,7 +3,7 @@ import type { Playlist, Song } from "../playlistModel.js";
 import {
   getCurrentUserPlaylists,
   getCurrentUserProfile,
-  getPlaylistTracks,
+  getPlaylistItems,
   type SpotifyPlaylistSummary
 } from "../spotify.js";
 
@@ -152,15 +152,15 @@ export function useSpotifyImport({
     setSpotifyStatus(`Importing "${selected.name}"...`);
 
     try {
-      const tracks = await getPlaylistTracks(spotifyToken, selected.id);
-      if (tracks.length === 0) {
+      const playlistItems = await getPlaylistItems(spotifyToken, selected.id);
+      if (playlistItems.length === 0) {
         setSpotifyStatus(
           `Imported 0 songs from "${selected.name}". The playlist may contain unavailable/local-only items for this token.`
         );
       }
 
       const tracksByLocalSongId = new Map(
-        tracks.map((track) => [
+        playlistItems.map((track) => [
           `spotify:${track.id}`,
           {
             id: `spotify:${track.id}`,
@@ -189,7 +189,7 @@ export function useSpotifyImport({
           `playlist-spotify-${selected.id}`
         );
 
-        const importedSongIds = tracks.map((track) => `spotify:${track.id}`);
+        const importedSongIds = playlistItems.map((track) => `spotify:${track.id}`);
         const importedPlaylist: Playlist = {
           id: uniquePlaylistId,
           name: `${selected.name} (Spotify)`,
@@ -206,7 +206,7 @@ export function useSpotifyImport({
       });
 
       setSpotifyStatus(
-        `Imported ${tracks.length} song(s) from "${selected.name}" into pane ${spotifyImportDialogPaneIndex + 1}.`
+        `Imported ${playlistItems.length} song(s) from "${selected.name}" into pane ${spotifyImportDialogPaneIndex + 1}.`
       );
       closeSpotifyImportDialog();
     } catch (error) {

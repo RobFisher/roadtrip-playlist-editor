@@ -184,32 +184,37 @@ export async function getCurrentUserProfile(
   };
 }
 
-export async function getPlaylistTracks(
+export async function getPlaylistItems(
   accessToken: string,
   playlistId: string
 ): Promise<SpotifyTrackSummary[]> {
-  type TracksResponse = {
+  type TrackLike = {
+    id: string | null;
+    name?: string;
+    uri?: string;
+    artists?: Array<{ name?: string }>;
+    album?: { images?: Array<{ url?: string }> };
+  };
+
+  type ItemsResponse = {
     items: Array<{
       is_local?: boolean;
-      track: null | {
-        id: string | null;
-        name?: string;
-        uri?: string;
-        artists?: Array<{ name?: string }>;
-        album?: { images?: Array<{ url?: string }> };
-      };
+      // Spotify playlist items contain media payloads keyed under `track`.
+      // Keep fallback support for `item` for compatibility with evolving payloads.
+      track?: null | TrackLike;
+      item?: null | TrackLike;
     }>;
     next: string | null;
   };
 
   const tracks: SpotifyTrackSummary[] = [];
   const seenTrackIds = new Set<string>();
-  let nextPath = `/playlists/${encodeURIComponent(playlistId)}/items?limit=100`;
+  let nextPath = `/playlists/${encodeURIComponent(playlistId)}/items?limit=100&additional_types=track`;
 
   while (nextPath) {
-    const page = await spotifyGet<TracksResponse>(nextPath, accessToken);
+    const page = await spotifyGet<ItemsResponse>(nextPath, accessToken);
     page.items.forEach((item, index) => {
-      const track = item.track;
+      const track = item.track ?? item.item;
       if (!track) {
         return;
       }
