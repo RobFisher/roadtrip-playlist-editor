@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import "./app.css";
 import {
   applySongDropAtIndex,
-  countSongMemberships,
   removeSongFromPlaylist,
   seedProjectData,
   type DragPayload,
@@ -20,6 +19,10 @@ import {
   type SpotifyAuthConfig,
   type SpotifyPlaylistSummary
 } from "./spotify.js";
+import { NewPlaylistDialog } from "./components/NewPlaylistDialog.js";
+import { PlaylistPane } from "./components/PlaylistPane.js";
+import { SpotifyImportDialog } from "./components/SpotifyImportDialog.js";
+import { WorkspaceHeader } from "./components/WorkspaceHeader.js";
 
 const initialPanePlaylistIds = seedProjectData.playlists.slice(0, 3).map((p) => p.id);
 const DRAG_MIME = "application/x-roadtrip-song";
@@ -512,24 +515,13 @@ export function App() {
 
   return (
     <main className="workspace">
-      <header className="workspace-header">
-        <div>
-          <p className="eyebrow">Milestone 2 UI Concept</p>
-          <h1>Roadtrip Playlist Pane Editor</h1>
-          <p className="subtitle">
-            Drag songs between playlist panes. Default: copy. Hold Shift while dragging
-            to move.
-          </p>
-        </div>
-        <div className="workspace-actions">
-          <button onClick={addPane} disabled={!availableForNewPane}>
-            Add Pane
-          </button>
-          <span className="drag-mode-indicator">Current drag mode: {dragModeLabel}</span>
-          {spotifyAuthError && <span className="status-error">{spotifyAuthError}</span>}
-          {spotifyStatus && <span className="status-info">{spotifyStatus}</span>}
-        </div>
-      </header>
+      <WorkspaceHeader
+        canAddPane={Boolean(availableForNewPane)}
+        dragModeLabel={dragModeLabel}
+        spotifyAuthError={spotifyAuthError}
+        spotifyStatus={spotifyStatus}
+        onAddPane={addPane}
+      />
 
       <section className="pane-grid">
         {panePlaylistIds.map((panePlaylistId, paneIndex) => {
@@ -539,263 +531,64 @@ export function App() {
           }
 
           return (
-            <article
-              className="pane"
+            <PlaylistPane
               key={`${paneIndex}-${panePlaylistId}`}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => onPaneDrop(event, playlist.id)}
-            >
-              <header className="pane-header">
-                <select
-                  value={playlist.id}
-                  onChange={(event) => updatePanePlaylist(paneIndex, event.target.value)}
-                >
-                  {playlists.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.name}
-                    </option>
-                  ))}
-                  <option value={NEW_PLAYLIST_VALUE}>New playlist...</option>
-                  <option value={IMPORT_SPOTIFY_VALUE}>Import from Spotify...</option>
-                </select>
-                <button
-                  className="pane-delete"
-                  onClick={() => deleteSelectedFromPlaylist(playlist.id)}
-                  disabled={selectedSong?.playlistId !== playlist.id}
-                  title="Delete selected song from this playlist"
-                >
-                  Delete Selected
-                </button>
-                <button
-                  className="pane-remove"
-                  onClick={() => removePane(paneIndex)}
-                  disabled={panePlaylistIds.length <= 1}
-                  title="Remove pane"
-                >
-                  Remove
-                </button>
-              </header>
-
-              <ul className="song-list">
-                {playlist.songIds.map((songId, songIndex) => {
-                  const song = songsById.get(songId);
-                  if (!song) {
-                    return null;
-                  }
-                  const membershipCount = countSongMemberships(playlists, song.id);
-
-                  return (
-                    <li className="song-row" key={`${playlist.id}-${song.id}`}>
-                      <div
-                        className={`drop-slot ${
-                          dropTarget?.playlistId === playlist.id &&
-                          dropTarget.index === songIndex
-                            ? "drop-slot-active"
-                            : ""
-                        }`}
-                        onDragOver={(event) =>
-                          onDropSlotDragOver(event, playlist.id, songIndex)
-                        }
-                        onDrop={(event) => onPaneDrop(event, playlist.id, songIndex)}
-                      />
-                      <article
-                        className={`song-card ${
-                          selectedSong?.playlistId === playlist.id &&
-                          selectedSong.songId === song.id
-                            ? "song-card-selected"
-                            : ""
-                        }`}
-                        draggable
-                        onClick={() => onSongClick(playlist.id, song.id)}
-                        onDragStart={(event) =>
-                          onSongDragStart(event, playlist.id, song.id)
-                        }
-                        onDragOver={(event) =>
-                          onSongCardDragOver(event, playlist.id, songIndex)
-                        }
-                        onDragEnd={() => {
-                          setDropTarget(null);
-                          dragPayloadRef.current = null;
-                        }}
-                      >
-                        <img src={song.artworkUrl} alt="" />
-                        <div className="song-copy">
-                          <strong>{song.title}</strong>
-                          <span>{song.artist}</span>
-                          <small>
-                            in {membershipCount} playlist
-                            {membershipCount === 1 ? "" : "s"}
-                          </small>
-                        </div>
-                      </article>
-                    </li>
-                  );
-                })}
-                <li className="song-row">
-                  <div
-                    className={`drop-slot ${
-                      dropTarget?.playlistId === playlist.id &&
-                      dropTarget.index === playlist.songIds.length
-                        ? "drop-slot-active"
-                        : ""
-                    }`}
-                    onDragOver={(event) =>
-                      onDropSlotDragOver(event, playlist.id, playlist.songIds.length)
-                    }
-                    onDrop={(event) =>
-                      onPaneDrop(event, playlist.id, playlist.songIds.length)
-                    }
-                  />
-                </li>
-              </ul>
-            </article>
+              paneIndex={paneIndex}
+              paneCount={panePlaylistIds.length}
+              playlist={playlist}
+              playlists={playlists}
+              songsById={songsById}
+              selectedSong={selectedSong}
+              dropTarget={dropTarget}
+              newPlaylistValue={NEW_PLAYLIST_VALUE}
+              importSpotifyValue={IMPORT_SPOTIFY_VALUE}
+              onUpdatePanePlaylist={updatePanePlaylist}
+              onDeleteSelectedFromPlaylist={deleteSelectedFromPlaylist}
+              onRemovePane={removePane}
+              onPaneDrop={onPaneDrop}
+              onDropSlotDragOver={onDropSlotDragOver}
+              onSongCardDragOver={onSongCardDragOver}
+              onSongDragStart={onSongDragStart}
+              onSongClick={onSongClick}
+              onSongDragEnd={() => {
+                setDropTarget(null);
+                dragPayloadRef.current = null;
+              }}
+            />
           );
         })}
       </section>
 
-      {newPlaylistDialogPaneIndex !== null && (
-        <div className="modal-backdrop">
-          <div className="modal-card" role="dialog" aria-modal="true">
-            <h2>Create Playlist</h2>
-            <label>
-              Playlist name
-              <input
-                autoFocus
-                value={newPlaylistName}
-                onChange={(event) => setNewPlaylistName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    createPlaylistFromDialog();
-                  }
-                }}
-              />
-            </label>
-            <div className="modal-actions">
-              <button
-                className="modal-cancel"
-                onClick={() => {
-                  setNewPlaylistDialogPaneIndex(null);
-                  setNewPlaylistName("");
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="modal-create"
-                onClick={createPlaylistFromDialog}
-                disabled={!newPlaylistName.trim()}
-              >
-                Create
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-      {spotifyImportDialogPaneIndex !== null && (
-        <div className="modal-backdrop">
-          <div className="modal-card" role="dialog" aria-modal="true">
-            <h2>Import From Spotify</h2>
-            <p className="modal-support">
-              Target pane: {spotifyImportDialogPaneIndex + 1}
-            </p>
-            {!spotifyToken ? (
-              <>
-                <p className="modal-support">
-                  Connect Spotify first to load your playlists.
-                </p>
-                <div className="modal-actions">
-                  <button
-                    className="modal-cancel"
-                    onClick={() => {
-                      setSpotifyImportDialogPaneIndex(null);
-                      setSpotifyAutoLoadTriggered(false);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button className="modal-create" onClick={() => void connectSpotify()}>
-                    Connect Spotify
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <label>
-                  Spotify playlist
-                  <select
-                    value={selectedSpotifyPlaylistId}
-                    onChange={(event) => setSelectedSpotifyPlaylistId(event.target.value)}
-                    disabled={spotifyLoading}
-                  >
-                    <option value="">Select Spotify playlist...</option>
-                    {spotifyPlaylists.map((playlist) => (
-                      <option key={playlist.id} value={playlist.id}>
-                        {playlist.name} ({playlist.tracksTotal}) {playlist.ownerDisplayName ? `- ${playlist.ownerDisplayName}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {spotifyPlaylists.length === 0 && (
-                  <p className="modal-support">
-                    No importable playlists found for this account
-                    {spotifyUserId ? ` (${spotifyUserId})` : ""}.
-                  </p>
-                )}
-                <div className="modal-actions">
-                  <button
-                    className="modal-cancel"
-                    onClick={() => {
-                      setSpotifyImportDialogPaneIndex(null);
-                      setSpotifyAutoLoadTriggered(false);
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="modal-cancel"
-                    onClick={() => void loadSpotifyPlaylists()}
-                    disabled={spotifyLoading}
-                  >
-                    Refresh List
-                  </button>
-                  <button className="modal-cancel" onClick={disconnectSpotify}>
-                    Disconnect
-                  </button>
-                  <button
-                    className="modal-create"
-                    onClick={() => void importSelectedSpotifyPlaylist()}
-                    disabled={!selectedSpotifyPlaylistId || spotifyLoading}
-                  >
-                    Import
-                  </button>
-                </div>
-                {import.meta.env.DEV && (
-                  <details className="debug-details">
-                  <summary>Debug: cURL commands</summary>
-                  <p className="modal-support">
-                    These include your live bearer token. Treat as sensitive.
-                  </p>
-                  <textarea
-                    className="debug-textarea"
-                    readOnly
-                    value={spotifyDebugCurlCommands}
-                  />
-                  <div className="modal-actions">
-                    <button
-                      className="modal-cancel"
-                      onClick={() => void copySpotifyDebugCurl()}
-                      disabled={!spotifyDebugCurlCommands}
-                    >
-                      Copy cURL Commands
-                    </button>
-                  </div>
-                  </details>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      <NewPlaylistDialog
+        isOpen={newPlaylistDialogPaneIndex !== null}
+        name={newPlaylistName}
+        onNameChange={setNewPlaylistName}
+        onCreate={createPlaylistFromDialog}
+        onCancel={() => {
+          setNewPlaylistDialogPaneIndex(null);
+          setNewPlaylistName("");
+        }}
+      />
+      <SpotifyImportDialog
+        isOpen={spotifyImportDialogPaneIndex !== null}
+        targetPaneIndex={spotifyImportDialogPaneIndex}
+        spotifyToken={spotifyToken}
+        spotifyLoading={spotifyLoading}
+        selectedSpotifyPlaylistId={selectedSpotifyPlaylistId}
+        spotifyPlaylists={spotifyPlaylists}
+        spotifyUserId={spotifyUserId}
+        spotifyDebugCurlCommands={spotifyDebugCurlCommands}
+        onClose={() => {
+          setSpotifyImportDialogPaneIndex(null);
+          setSpotifyAutoLoadTriggered(false);
+        }}
+        onConnectSpotify={connectSpotify}
+        onDisconnectSpotify={disconnectSpotify}
+        onRefreshPlaylists={loadSpotifyPlaylists}
+        onImportSelected={importSelectedSpotifyPlaylist}
+        onPlaylistSelect={setSelectedSpotifyPlaylistId}
+        onCopyDebugCurl={copySpotifyDebugCurl}
+      />
     </main>
   );
 }
