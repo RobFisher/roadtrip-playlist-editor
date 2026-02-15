@@ -4,6 +4,8 @@ A local-first playlist workspace for comparing and editing multiple playlists at
 The UI shows multiple playlist panes side by side so you can drag songs between playlists,
 reorder tracks within a playlist, and quickly shape alternatives before exporting.
 
+![Roadtrip Playlist Editor screenshot](screenshot.png)
+
 Current status:
 - Milestones 0-2 are complete.
 - The app is useful now as a personal local editor (save/load project JSON files, Spotify import/export).
