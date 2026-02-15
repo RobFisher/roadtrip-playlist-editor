@@ -98,6 +98,9 @@ body {
   box-shadow: 0 12px 30px rgba(23, 33, 45, 0.14);
   padding: 12px;
   min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .pane-header {
@@ -149,6 +152,18 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0;
+  min-height: 0;
+}
+
+@media (min-width: 900px) {
+  .pane-grid:has(.pane:nth-child(2)) .pane {
+    max-height: calc(100vh - 190px);
+  }
+
+  .pane-grid:has(.pane:nth-child(2)) .song-list {
+    overflow-y: auto;
+    padding-right: 6px;
+  }
 }
 
 .song-row {
