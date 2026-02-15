@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./app.css";
 import {
-  applySongDropAtIndex,
   removeSongFromPlaylist,
   seedProjectData,
-  type DragPayload,
   type Playlist
 } from "./playlistModel.js";
 import {
@@ -18,9 +16,9 @@ import { PlaylistPane } from "./components/PlaylistPane.js";
 import { SpotifyImportDialog } from "./components/SpotifyImportDialog.js";
 import { WorkspaceHeader } from "./components/WorkspaceHeader.js";
 import { useSpotifyAuth } from "./hooks/useSpotifyAuth.js";
+import { usePaneDragDrop } from "./hooks/usePaneDragDrop.js";
 
 const initialPanePlaylistIds = seedProjectData.playlists.slice(0, 3).map((p) => p.id);
-const DRAG_MIME = "application/x-roadtrip-song";
 const NEW_PLAYLIST_VALUE = "__new_playlist__";
 const IMPORT_SPOTIFY_VALUE = "__import_spotify__";
 
@@ -44,15 +42,9 @@ export function App() {
   const [songs, setSongs] = useState(seedProjectData.songs);
   const [playlists, setPlaylists] = useState<Playlist[]>(seedProjectData.playlists);
   const [panePlaylistIds, setPanePlaylistIds] = useState<string[]>(initialPanePlaylistIds);
-  const [dragModeLabel, setDragModeLabel] = useState<"copy" | "move">("copy");
-  const dragPayloadRef = useRef<DragPayload | null>(null);
   const [selectedSong, setSelectedSong] = useState<{
     playlistId: string;
     songId: string;
-  } | null>(null);
-  const [dropTarget, setDropTarget] = useState<{
-    playlistId: string;
-    index: number;
   } | null>(null);
   const [newPlaylistDialogPaneIndex, setNewPlaylistDialogPaneIndex] = useState<number | null>(
     null
@@ -73,6 +65,18 @@ export function App() {
   );
   const [spotifyAutoLoadTriggered, setSpotifyAutoLoadTriggered] = useState(false);
   const [spotifyStatus, setSpotifyStatus] = useState<string | null>(null);
+  const {
+    dragModeLabel,
+    dropTarget,
+    onSongDragStart,
+    onPaneDrop,
+    onDropSlotDragOver,
+    onSongCardDragOver,
+    onSongDragEnd
+  } = usePaneDragDrop({
+    playlists,
+    setPlaylists
+  });
 
   const songsById = useMemo(() => {
     return new Map(songs.map((song) => [song.id, song]));
@@ -328,83 +332,6 @@ export function App() {
     setSelectedSong(null);
   }
 
-  function onSongDragStart(
-    event: React.DragEvent<HTMLElement>,
-    sourcePlaylistId: string,
-    songId: string
-  ): void {
-    const mode: DragPayload["mode"] = event.shiftKey ? "move" : "copy";
-    setDragModeLabel(mode);
-
-    const payload: DragPayload = { songId, sourcePlaylistId, mode };
-    dragPayloadRef.current = payload;
-    const payloadText = JSON.stringify(payload);
-    event.dataTransfer.setData(DRAG_MIME, payloadText);
-    event.dataTransfer.setData("text/plain", payloadText);
-    event.dataTransfer.effectAllowed = "copyMove";
-  }
-
-  function onPaneDrop(
-    event: React.DragEvent<HTMLElement>,
-    destinationPlaylistId: string,
-    destinationIndex?: number
-  ): void {
-    event.preventDefault();
-    const payloadRaw =
-      event.dataTransfer.getData(DRAG_MIME) ||
-      event.dataTransfer.getData("text/plain");
-    let payload: DragPayload | null = null;
-
-    if (payloadRaw) {
-      try {
-        payload = JSON.parse(payloadRaw) as DragPayload;
-      } catch {
-        payload = null;
-      }
-    }
-
-    if (!payload) {
-      payload = dragPayloadRef.current;
-    }
-
-    if (!payload) {
-      return;
-    }
-
-    const resolvedIndex =
-      destinationIndex ??
-      (dropTarget?.playlistId === destinationPlaylistId
-        ? dropTarget.index
-        : playlists.find((playlist) => playlist.id === destinationPlaylistId)?.songIds
-            .length ?? 0);
-
-    setPlaylists((prev) =>
-      applySongDropAtIndex(prev, payload, destinationPlaylistId, resolvedIndex)
-    );
-    setDropTarget(null);
-    dragPayloadRef.current = null;
-  }
-
-  function onDropSlotDragOver(
-    event: React.DragEvent<HTMLElement>,
-    playlistId: string,
-    destinationIndex: number
-  ): void {
-    event.preventDefault();
-    setDropTarget({ playlistId, index: destinationIndex });
-  }
-
-  function onSongCardDragOver(
-    event: React.DragEvent<HTMLElement>,
-    playlistId: string,
-    songIndex: number
-  ): void {
-    event.preventDefault();
-    const bounds = event.currentTarget.getBoundingClientRect();
-    const isLowerHalf = event.clientY > bounds.top + bounds.height / 2;
-    setDropTarget({ playlistId, index: isLowerHalf ? songIndex + 1 : songIndex });
-  }
-
   return (
     <main className="workspace">
       <WorkspaceHeader
@@ -442,10 +369,7 @@ export function App() {
               onSongCardDragOver={onSongCardDragOver}
               onSongDragStart={onSongDragStart}
               onSongClick={onSongClick}
-              onSongDragEnd={() => {
-                setDropTarget(null);
-                dragPayloadRef.current = null;
-              }}
+              onSongDragEnd={onSongDragEnd}
             />
           );
         })}
