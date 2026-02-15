@@ -1,7 +1,7 @@
 # Delivery Plan (Testable Steps)
 
-This plan is ordered to deliver something on AWS quickly, then de-risk auth integrations.
-It prioritizes functionality that can work without third-party sign-in.
+This plan delivered AWS early, then focused on a useful no-backend editor.
+It now prioritizes search integration next, followed by backend/auth/collaboration later.
 
 ## Milestone 0: Repo + Environment Baseline
 
@@ -17,6 +17,8 @@ Exit criteria:
 
 - Fresh machine can run one setup command and start app locally.
 - CI-style command (`npm test`) runs without failures.
+
+Status: Complete.
 
 ## Milestone 1: AWS Hello World Deployment
 
@@ -36,26 +38,49 @@ Exit criteria:
 - Rollback path documented.
 - AWS deployment guide includes clear cost drivers and an explicit `cdk destroy` teardown procedure.
 
-## Milestone 2: Core Local Editor + File Import/Export (No Third-party Auth)
+Status: Complete.
 
-Goal: prove the pane-based interaction model.
+## Milestone 2: Core Local Editor + Local File Save/Load + Spotify Import/Export
+
+Goal: reach a useful milestone without backend services.
 
 Tasks:
 
-1. Implement data model: song, playlist, project.
-2. Build 3+ pane layout (search pane + playlist panes).
-3. Add drag-copy and drag-move behavior with clear visual cues.
-4. Add song context menu and playlist membership view.
-5. Add import/export support for a standard playlist file format.
+1. Implement data model for songs/playlists/projects.
+2. Build multi-pane playlist editor with drag-copy/drag-move and reorder-at-position.
+3. Add core pane operations (add/remove pane, create playlist, delete selected song from playlist).
+4. Add local project save/load via JSON schema (project name + pane/playlist state).
+5. Integrate Spotify auth and playlist import.
+6. Integrate Spotify export to create a new Spotify playlist from pane contents.
 
 Exit criteria:
 
-- User can add/move/copy songs across panes.
-- Song card shows title, artist, art thumbnail, count of playlist memberships.
-- User can import a playlist file, edit it, and export it again.
-- Interaction flows covered by UI tests.
+- User can build and edit playlists locally across panes.
+- User can save and reload project state from local JSON files.
+- User can import from Spotify and export pane content to a new Spotify playlist.
+- Deployed frontend is usable without backend persistence.
 
-## Milestone 3: Shared Projects + Identity
+Status: Complete.
+
+## Milestone 3: Search Provider Integration (Low Auth Friction)
+
+Goal: useful song discovery before backend work.
+
+Tasks:
+
+1. Integrate at least one free/public song metadata search provider.
+2. Add search UI and result list that maps into the internal song model.
+3. Allow adding search results directly into existing playlists/panes.
+4. Add graceful handling for provider outages/rate limits/empty results.
+
+Exit criteria:
+
+- Search returns usable song results.
+- User can add search results to playlists with current editor flows.
+- Added songs remain exportable to Spotify from the existing export workflow.
+- Provider failures are visible but do not break editing workflow.
+
+## Milestone 4: Shared Projects + Identity (Backend Start)
 
 Goal: multi-user collaboration with minimum PII.
 
@@ -72,53 +97,38 @@ Exit criteria:
 - Unauthorized user cannot access project.
 - Data schema contains no user PII beyond email.
 
-## Milestone 4: Search Provider Integration (Low Auth Friction)
+## Milestone 5: Backend Project Storage + User Login
 
-Goal: useful song discovery before Spotify dependency.
-
-Tasks:
-
-1. Integrate at least one free/public song search metadata source.
-2. Map search results into internal song model used by panes.
-3. Add graceful fallback when provider is unavailable or rate limited.
-
-Exit criteria:
-
-- Search pane returns results without requiring Spotify login.
-- User can add search results to playlists with existing drag/copy flows.
-- Provider errors are handled without breaking editing workflow.
-
-## Milestone 5: Spotify Integration
-
-Goal: real playlist import/export.
+Goal: move from local-only projects to account-backed persistence.
 
 Tasks:
 
-1. Register Spotify app and configure redirect URIs.
-2. Implement Spotify OAuth and token handling.
-3. Add import playlist from Spotify.
-4. Add export playlist to Spotify.
+1. Add authenticated user login flow for production use.
+2. Persist project data to backend storage.
+3. Add project list/open/save flows tied to user identity.
+4. Keep local file export/import as fallback.
 
 Exit criteria:
 
-- User connects Spotify account and imports playlist into project.
-- Export creates/updates Spotify playlist correctly.
-- Token refresh and expired-token behavior are covered by tests.
+- User can sign in and save/open projects from backend storage.
+- Unauthorized access to another user's projects is blocked.
+- Local file workflows continue to work.
 
-## Milestone 6: Real-time Collaboration Improvements
+## Milestone 6: Real-time Collaboration
 
-Goal: better concurrency behavior.
+Goal: multi-user concurrent editing with conflict safety.
 
 Tasks:
 
 1. Add near-real-time sync mechanism.
-2. Add optimistic UI updates with conflict handling.
-3. Add user-facing conflict notification.
+2. Add optimistic UI updates with conflict detection/resolution.
+3. Add user-facing presence and conflict indicators.
 
 Exit criteria:
 
-- Concurrent edits do not silently drop user changes.
-- Playlist order and song membership remain consistent after simultaneous edits.
+- Two users can edit the same project and see updates quickly.
+- Conflicts are surfaced and resolved deterministically.
+- Playlist order and song membership remain consistent after concurrent edits.
 
 ## Decision Gates
 
