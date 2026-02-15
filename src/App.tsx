@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import "./app.css";
 import {
   removeSongFromPlaylist,
   seedProjectData,
   type Playlist
 } from "./playlistModel.js";
+import { parseProjectState, serializeProjectState } from "./projectPersistence.js";
 import { NewPlaylistDialog } from "./components/NewPlaylistDialog.js";
 import { PlaylistPane } from "./components/PlaylistPane.js";
 import { SpotifyImportDialog } from "./components/SpotifyImportDialog.js";
@@ -34,6 +35,7 @@ function buildUniquePlaylistId(existingPlaylists: Playlist[], base: string): str
 }
 
 export function App() {
+  const loadProjectInputRef = useRef<HTMLInputElement | null>(null);
   const [songs, setSongs] = useState(seedProjectData.songs);
   const [playlists, setPlaylists] = useState<Playlist[]>(seedProjectData.playlists);
   const [panePlaylistIds, setPanePlaylistIds] = useState<string[]>(initialPanePlaylistIds);
@@ -95,6 +97,7 @@ export function App() {
     onDisconnectAuth: disconnectSpotifyAuth,
     buildUniquePlaylistId
   });
+  const [projectStatus, setProjectStatus] = useState<string | null>(null);
 
   function addPane(): void {
     if (!availableForNewPane) {
@@ -172,6 +175,58 @@ export function App() {
     setSelectedSong(null);
   }
 
+  function saveProjectToFile(): void {
+    const payload = serializeProjectState(songs, playlists, panePlaylistIds);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+      type: "application/json"
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    anchor.href = url;
+    anchor.download = `roadtrip-project-${timestamp}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    setProjectStatus(`Saved project with ${playlists.length} playlist(s).`);
+  }
+
+  function openProjectPicker(): void {
+    if (!loadProjectInputRef.current) {
+      return;
+    }
+    loadProjectInputRef.current.value = "";
+    loadProjectInputRef.current.click();
+  }
+
+  async function loadProjectFromFile(
+    event: React.ChangeEvent<HTMLInputElement>
+  ): Promise<void> {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const raw = await file.text();
+      const parsed = parseProjectState(raw);
+      setSongs(parsed.songs);
+      setPlaylists(parsed.playlists);
+      setPanePlaylistIds(parsed.panePlaylistIds);
+      setSelectedSong(null);
+      setNewPlaylistDialogPaneIndex(null);
+      closeSpotifyImportDialog();
+      setProjectStatus(
+        `Loaded project with ${parsed.playlists.length} playlist(s) into ${parsed.panePlaylistIds.length} pane(s).`
+      );
+    } catch (error) {
+      setProjectStatus(
+        error instanceof Error ? error.message : "Failed to load project file."
+      );
+    } finally {
+      event.target.value = "";
+    }
+  }
+
   return (
     <main className="workspace">
       <WorkspaceHeader
@@ -179,7 +234,17 @@ export function App() {
         dragModeLabel={dragModeLabel}
         spotifyAuthError={spotifyAuthError}
         spotifyStatus={spotifyStatus}
+        projectStatus={projectStatus}
         onAddPane={addPane}
+        onSaveProject={saveProjectToFile}
+        onLoadProject={openProjectPicker}
+      />
+      <input
+        ref={loadProjectInputRef}
+        type="file"
+        accept="application/json,.json"
+        style={{ display: "none" }}
+        onChange={(event) => void loadProjectFromFile(event)}
       />
 
       <section className="pane-grid">

@@ -3,7 +3,10 @@ interface WorkspaceHeaderProps {
   dragModeLabel: "copy" | "move";
   spotifyAuthError: string | null;
   spotifyStatus: string | null;
+  projectStatus: string | null;
   onAddPane: () => void;
+  onSaveProject: () => void;
+  onLoadProject: () => void;
 }
 
 export function WorkspaceHeader({
@@ -11,7 +14,10 @@ export function WorkspaceHeader({
   dragModeLabel,
   spotifyAuthError,
   spotifyStatus,
-  onAddPane
+  projectStatus,
+  onAddPane,
+  onSaveProject,
+  onLoadProject
 }: WorkspaceHeaderProps) {
   return (
     <header className="workspace-header">
@@ -27,9 +33,12 @@ export function WorkspaceHeader({
         <button onClick={onAddPane} disabled={!canAddPane}>
           Add Pane
         </button>
+        <button onClick={onSaveProject}>Save Project</button>
+        <button onClick={onLoadProject}>Load Project</button>
         <span className="drag-mode-indicator">Current drag mode: {dragModeLabel}</span>
         {spotifyAuthError && <span className="status-error">{spotifyAuthError}</span>}
         {spotifyStatus && <span className="status-info">{spotifyStatus}</span>}
+        {projectStatus && <span className="status-info">{projectStatus}</span>}
       </div>
     </header>
   );
