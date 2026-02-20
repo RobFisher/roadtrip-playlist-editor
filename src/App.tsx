@@ -323,13 +323,16 @@ export function App() {
       });
 
       setPlaylists((prevPlaylists) => {
-        const uniquePlaylistId = buildUniquePlaylistId(
-          prevPlaylists,
-          `playlist-search-${Date.now()}`
+        const searchPlaylistName = `Search: ${query}`;
+        const existingSearchPlaylist = prevPlaylists.find(
+          (playlist) => playlist.name.toLowerCase() === searchPlaylistName.toLowerCase()
         );
+        const searchPlaylistId =
+          existingSearchPlaylist?.id ??
+          buildUniquePlaylistId(prevPlaylists, `playlist-search-${Date.now()}`);
         const searchPlaylist: Playlist = {
-          id: uniquePlaylistId,
-          name: `Search: ${query}`,
+          id: searchPlaylistId,
+          name: searchPlaylistName,
           songIds: result.tracks.map((track) => `spotify:${track.id}`)
         };
 
@@ -355,6 +358,11 @@ export function App() {
           )
         );
 
+        if (existingSearchPlaylist) {
+          return prevPlaylists.map((playlist) =>
+            playlist.id === existingSearchPlaylist.id ? searchPlaylist : playlist
+          );
+        }
         return [...prevPlaylists, searchPlaylist];
       });
 
