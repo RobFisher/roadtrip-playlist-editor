@@ -31,6 +31,13 @@ const initialPaneModes: PaneMode[] = initialPanePlaylistIds.map(() => "playlist"
 const NEW_PLAYLIST_VALUE = "__new_playlist__";
 const IMPORT_SPOTIFY_VALUE = "__import_spotify__";
 const SEARCH_SPOTIFY_VALUE = "__search_spotify__";
+const SPOTIFY_SEARCH_PAGE_SIZE = 10;
+
+interface PaneSearchState {
+  query: string;
+  nextOffset: number;
+  total: number;
+}
 
 function normalizePlaylistName(value: string): string {
   return value.trim().replace(/\s+/g, " ");
@@ -85,8 +92,13 @@ export function App() {
     number | null
   >(null);
   const [spotifySearchQuery, setSpotifySearchQuery] = useState("");
-  const [spotifySearchOffset, setSpotifySearchOffset] = useState(0);
+  const [paneSearchStates, setPaneSearchStates] = useState<Array<PaneSearchState | null>>(
+    initialPanePlaylistIds.map(() => null)
+  );
   const [spotifySearchLoading, setSpotifySearchLoading] = useState(false);
+  const [spotifySearchLoadMorePaneIndex, setSpotifySearchLoadMorePaneIndex] = useState<
+    number | null
+  >(null);
   const {
     spotifyToken,
     spotifyAuthError,
@@ -142,7 +154,11 @@ export function App() {
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
 
   const spotifyConnected = Boolean(spotifyToken);
-  const spotifyBusy = spotifyLoading || spotifyExportLoading || spotifySearchLoading;
+  const spotifyBusy =
+    spotifyLoading ||
+    spotifyExportLoading ||
+    spotifySearchLoading ||
+    spotifySearchLoadMorePaneIndex !== null;
 
   const spotifyExportSourcePlaylist = useMemo(() => {
     if (spotifyExportDialogPaneIndex === null) {
@@ -198,11 +214,13 @@ export function App() {
     }
     setPanePlaylistIds((prev) => [...prev, availableForNewPane.id]);
     setPaneModes((prev) => [...prev, "playlist"]);
+    setPaneSearchStates((prev) => [...prev, null]);
   }
 
   function removePane(index: number): void {
     setPanePlaylistIds((prev) => prev.filter((_, paneIndex) => paneIndex !== index));
     setPaneModes((prev) => prev.filter((_, paneIndex) => paneIndex !== index));
+    setPaneSearchStates((prev) => prev.filter((_, paneIndex) => paneIndex !== index));
   }
 
   function updatePanePlaylist(index: number, playlistId: string): void {
@@ -227,6 +245,9 @@ export function App() {
     );
     setPaneModes((prev) =>
       prev.map((mode, paneIndex) => (paneIndex === index ? "playlist" : mode))
+    );
+    setPaneSearchStates((prev) =>
+      prev.map((state, paneIndex) => (paneIndex === index ? null : state))
     );
   }
 
@@ -267,16 +288,14 @@ export function App() {
       return;
     }
 
-    const offset = Math.max(0, spotifySearchOffset);
-
     setSpotifySearchLoading(true);
     setSpotifyStatusMessage(`Searching Spotify for "${query}"...`);
 
     try {
       const result = await searchSpotifyTracks(spotifyToken, {
         query,
-        limit: 10,
-        offset
+        limit: SPOTIFY_SEARCH_PAGE_SIZE,
+        offset: 0
       });
 
       const tracksByLocalSongId = new Map(
@@ -324,6 +343,17 @@ export function App() {
             paneIndex === spotifySearchDialogPaneIndex ? "search" : mode
           )
         );
+        setPaneSearchStates((prevStates) =>
+          prevStates.map((state, paneIndex) =>
+            paneIndex === spotifySearchDialogPaneIndex
+              ? {
+                  query,
+                  nextOffset: SPOTIFY_SEARCH_PAGE_SIZE,
+                  total: result.total
+                }
+              : state
+          )
+        );
 
         return [...prevPlaylists, searchPlaylist];
       });
@@ -332,7 +362,7 @@ export function App() {
       setSpotifyStatusMessage(
         `Search added ${result.tracks.length} track(s) to pane ${
           spotifySearchDialogPaneIndex + 1
-        } (${offset + 1}-${offset + result.tracks.length} of ${result.total}).`
+        } (1-${result.tracks.length} of ${result.total}).`
       );
       closeSpotifySearchDialog();
     } catch (error) {
@@ -347,6 +377,107 @@ export function App() {
       }
     } finally {
       setSpotifySearchLoading(false);
+    }
+  }
+
+  async function loadMoreSearchResults(paneIndex: number): Promise<void> {
+    if (!spotifyToken) {
+      setSpotifyStatusMessage("Connect Spotify before loading more results.");
+      return;
+    }
+    if (paneModes[paneIndex] !== "search") {
+      return;
+    }
+
+    const searchState = paneSearchStates[paneIndex];
+    if (!searchState || searchState.nextOffset >= searchState.total) {
+      return;
+    }
+
+    const panePlaylistId = panePlaylistIds[paneIndex];
+    if (!panePlaylistId) {
+      return;
+    }
+
+    setSpotifySearchLoadMorePaneIndex(paneIndex);
+    setSpotifyStatusMessage(
+      `Loading more search results in pane ${paneIndex + 1}...`
+    );
+
+    try {
+      const result = await searchSpotifyTracks(spotifyToken, {
+        query: searchState.query,
+        limit: SPOTIFY_SEARCH_PAGE_SIZE,
+        offset: searchState.nextOffset
+      });
+
+      const newSongIds = result.tracks.map((track) => `spotify:${track.id}`);
+      const tracksByLocalSongId = new Map(
+        result.tracks.map((track) => [
+          `spotify:${track.id}`,
+          {
+            id: `spotify:${track.id}`,
+            title: track.title,
+            artist: track.artists,
+            artworkUrl: track.artworkUrl,
+            spotifyUri: track.spotifyUri
+          }
+        ])
+      );
+
+      setSongs((prevSongs) => {
+        const merged = [...prevSongs];
+        const existing = new Set(prevSongs.map((song) => song.id));
+        for (const [songId, song] of tracksByLocalSongId) {
+          if (!existing.has(songId)) {
+            merged.push(song);
+          }
+        }
+        return merged;
+      });
+
+      setPlaylists((prevPlaylists) =>
+        prevPlaylists.map((playlist) => {
+          if (playlist.id !== panePlaylistId) {
+            return playlist;
+          }
+          const existingSongIds = new Set(playlist.songIds);
+          const appended = newSongIds.filter((songId) => !existingSongIds.has(songId));
+          return {
+            ...playlist,
+            songIds: [...playlist.songIds, ...appended]
+          };
+        })
+      );
+
+      setPaneSearchStates((prevStates) =>
+        prevStates.map((state, index) => {
+          if (index !== paneIndex || !state) {
+            return state;
+          }
+          return {
+            ...state,
+            nextOffset: state.nextOffset + SPOTIFY_SEARCH_PAGE_SIZE,
+            total: result.total
+          };
+        })
+      );
+
+      setSpotifyStatusMessage(
+        `Loaded ${result.tracks.length} more track(s) in pane ${paneIndex + 1}.`
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("(429)")) {
+        setSpotifyStatusMessage(
+          `Spotify search is rate-limited right now. Retry in a moment. ${error.message}`
+        );
+      } else {
+        setSpotifyStatusMessage(
+          error instanceof Error ? error.message : "Failed to load more search results."
+        );
+      }
+    } finally {
+      setSpotifySearchLoadMorePaneIndex(null);
     }
   }
 
@@ -392,6 +523,11 @@ export function App() {
         setPaneModes((prev) =>
           prev.map((mode, paneIndex) =>
             paneIndex === spotifyExportDialogPaneIndex ? "playlist" : mode
+          )
+        );
+        setPaneSearchStates((prev) =>
+          prev.map((state, paneIndex) =>
+            paneIndex === spotifyExportDialogPaneIndex ? null : state
           )
         );
       }
@@ -440,6 +576,11 @@ export function App() {
     setPaneModes((prev) =>
       prev.map((mode, paneIndex) =>
         paneIndex === newPlaylistDialogPaneIndex ? "playlist" : mode
+      )
+    );
+    setPaneSearchStates((prev) =>
+      prev.map((state, paneIndex) =>
+        paneIndex === newPlaylistDialogPaneIndex ? null : state
       )
     );
 
@@ -522,6 +663,7 @@ export function App() {
       setPlaylists(parsed.playlists);
       setPanePlaylistIds(parsed.panePlaylistIds);
       setPaneModes(parsed.paneModes);
+      setPaneSearchStates(parsed.panePlaylistIds.map(() => null));
       setProjectName(parsed.projectName ?? "Untitled Project");
       setSelectedSong(null);
       setNewPlaylistDialogPaneIndex(null);
@@ -570,6 +712,7 @@ export function App() {
             return null;
           }
           const paneMode = paneModes[paneIndex] ?? "playlist";
+          const paneSearchState = paneSearchStates[paneIndex];
           const selectablePlaylists =
             paneMode === "search"
               ? playlists.filter(
@@ -602,6 +745,13 @@ export function App() {
               onSongDragStart={onSongDragStart}
               onSongClick={onSongClick}
               onSongDragEnd={onSongDragEnd}
+              canLoadMore={
+                paneMode === "search" &&
+                Boolean(paneSearchState) &&
+                (paneSearchState?.nextOffset ?? 0) < (paneSearchState?.total ?? 0)
+              }
+              loadMoreLoading={spotifySearchLoadMorePaneIndex === paneIndex}
+              onLoadMore={loadMoreSearchResults}
             />
           );
         })}
@@ -657,10 +807,8 @@ export function App() {
         spotifyConnected={spotifyConnected}
         loading={spotifySearchLoading}
         query={spotifySearchQuery}
-        offset={spotifySearchOffset}
         onClose={closeSpotifySearchDialog}
         onQueryChange={setSpotifySearchQuery}
-        onOffsetChange={setSpotifySearchOffset}
         onSearch={searchSpotifyForPane}
       />
     </main>

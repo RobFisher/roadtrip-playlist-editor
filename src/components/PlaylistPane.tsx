@@ -38,6 +38,9 @@ interface PlaylistPaneProps {
   ) => void;
   onSongClick: (playlistId: string, songId: string) => void;
   onSongDragEnd: () => void;
+  canLoadMore: boolean;
+  loadMoreLoading: boolean;
+  onLoadMore: (paneIndex: number) => Promise<void>;
 }
 
 export function PlaylistPane({
@@ -61,7 +64,10 @@ export function PlaylistPane({
   onSongCardDragOver,
   onSongDragStart,
   onSongClick,
-  onSongDragEnd
+  onSongDragEnd,
+  canLoadMore,
+  loadMoreLoading,
+  onLoadMore
 }: PlaylistPaneProps) {
   return (
     <article
@@ -162,6 +168,15 @@ export function PlaylistPane({
         </li>
       </ul>
       <div className="pane-footer">
+        {canLoadMore && (
+          <button
+            className="pane-export"
+            onClick={() => void onLoadMore(paneIndex)}
+            disabled={loadMoreLoading}
+          >
+            {loadMoreLoading ? "Loading..." : "Load more"}
+          </button>
+        )}
         <button className="pane-export" onClick={() => onOpenSpotifyExport(paneIndex)}>
           Export to Spotify...
         </button>

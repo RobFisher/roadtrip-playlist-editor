@@ -4,10 +4,8 @@ interface SpotifySearchDialogProps {
   spotifyConnected: boolean;
   loading: boolean;
   query: string;
-  offset: number;
   onClose: () => void;
   onQueryChange: (value: string) => void;
-  onOffsetChange: (value: number) => void;
   onSearch: () => Promise<void>;
 }
 
@@ -17,10 +15,8 @@ export function SpotifySearchDialog({
   spotifyConnected,
   loading,
   query,
-  offset,
   onClose,
   onQueryChange,
-  onOffsetChange,
   onSearch
 }: SpotifySearchDialogProps) {
   if (!isOpen || paneIndex === null) {
@@ -52,20 +48,6 @@ export function SpotifySearchDialog({
             <p className="modal-support">
               Uses your Spotify account&apos;s default market automatically.
             </p>
-            <div className="modal-inline-fields">
-              <label>
-                Offset
-                <input
-                  type="number"
-                  min={0}
-                  value={offset}
-                  onChange={(event) => {
-                    const parsed = Number.parseInt(event.target.value, 10);
-                    onOffsetChange(Number.isNaN(parsed) ? 0 : parsed);
-                  }}
-                />
-              </label>
-            </div>
           </>
         )}
 
