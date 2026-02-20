@@ -1,6 +1,7 @@
 import type { Playlist, Song } from "./playlistModel.js";
 
 export const PROJECT_SCHEMA_VERSION = "roadtrip-playlist-project.v1";
+export type PaneMode = "playlist" | "search";
 
 export interface PersistedProjectV1 {
   schemaVersion: typeof PROJECT_SCHEMA_VERSION;
@@ -9,6 +10,7 @@ export interface PersistedProjectV1 {
   songs: Song[];
   playlists: Playlist[];
   panePlaylistIds: string[];
+  paneModes: PaneMode[];
 }
 
 function assertString(value: unknown, fieldPath: string): asserts value is string {
@@ -80,7 +82,8 @@ export function serializeProjectState(
   projectName: string,
   songs: Song[],
   playlists: Playlist[],
-  panePlaylistIds: string[]
+  panePlaylistIds: string[],
+  paneModes: PaneMode[]
 ): PersistedProjectV1 {
   const normalizedProjectName = projectName.trim();
   return {
@@ -89,7 +92,8 @@ export function serializeProjectState(
     projectName: normalizedProjectName || undefined,
     songs,
     playlists,
-    panePlaylistIds
+    panePlaylistIds,
+    paneModes
   };
 }
 
@@ -149,6 +153,26 @@ export function parseProjectState(raw: string): PersistedProjectV1 {
     }
   });
 
+  let paneModes: PaneMode[] = [];
+  if (parsed.paneModes === undefined) {
+    paneModes = parsed.panePlaylistIds.map(() => "playlist");
+  } else {
+    assertStringArray(parsed.paneModes, "paneModes");
+    if (parsed.paneModes.length !== parsed.panePlaylistIds.length) {
+      throw new Error(
+        `Invalid project file: "paneModes" length must match "panePlaylistIds" length.`
+      );
+    }
+    paneModes = parsed.paneModes.map((mode, index) => {
+      if (mode !== "playlist" && mode !== "search") {
+        throw new Error(
+          `Invalid project file: paneModes[${index}] must be "playlist" or "search".`
+        );
+      }
+      return mode;
+    });
+  }
+
   return {
     schemaVersion: PROJECT_SCHEMA_VERSION,
     exportedAt: typeof parsed.exportedAt === "string" ? parsed.exportedAt : "",
@@ -158,6 +182,7 @@ export function parseProjectState(raw: string): PersistedProjectV1 {
         : undefined,
     songs,
     playlists,
-    panePlaylistIds: parsed.panePlaylistIds
+    panePlaylistIds: parsed.panePlaylistIds,
+    paneModes
   };
 }

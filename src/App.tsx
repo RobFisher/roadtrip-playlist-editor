@@ -5,7 +5,11 @@ import {
   seedProjectData,
   type Playlist
 } from "./playlistModel.js";
-import { parseProjectState, serializeProjectState } from "./projectPersistence.js";
+import {
+  parseProjectState,
+  serializeProjectState,
+  type PaneMode
+} from "./projectPersistence.js";
 import { NewPlaylistDialog } from "./components/NewPlaylistDialog.js";
 import { PlaylistPane } from "./components/PlaylistPane.js";
 import { SaveProjectDialog } from "./components/SaveProjectDialog.js";
@@ -23,6 +27,7 @@ import {
 } from "./spotify.js";
 
 const initialPanePlaylistIds = seedProjectData.playlists.slice(0, 3).map((p) => p.id);
+const initialPaneModes: PaneMode[] = initialPanePlaylistIds.map(() => "playlist");
 const NEW_PLAYLIST_VALUE = "__new_playlist__";
 const IMPORT_SPOTIFY_VALUE = "__import_spotify__";
 const SEARCH_SPOTIFY_VALUE = "__search_spotify__";
@@ -60,6 +65,7 @@ export function App() {
   const [songs, setSongs] = useState(seedProjectData.songs);
   const [playlists, setPlaylists] = useState<Playlist[]>(seedProjectData.playlists);
   const [panePlaylistIds, setPanePlaylistIds] = useState<string[]>(initialPanePlaylistIds);
+  const [paneModes, setPaneModes] = useState<PaneMode[]>(initialPaneModes);
   const [selectedSong, setSelectedSong] = useState<{
     playlistId: string;
     songId: string;
@@ -133,6 +139,7 @@ export function App() {
     setSongs,
     setPlaylists,
     setPanePlaylistIds,
+    setPaneModes,
     onDisconnectAuth: disconnectSpotifyAuth,
     buildUniquePlaylistId
   });
@@ -148,6 +155,29 @@ export function App() {
     const playlistId = panePlaylistIds[spotifyExportDialogPaneIndex];
     return playlists.find((playlist) => playlist.id === playlistId) ?? null;
   }, [panePlaylistIds, playlists, spotifyExportDialogPaneIndex]);
+
+  const searchOnlyPlaylistIds = useMemo(() => {
+    const usedByPlaylistPane = new Set<string>();
+    const usedBySearchPane = new Set<string>();
+
+    panePlaylistIds.forEach((playlistId, paneIndex) => {
+      const mode = paneModes[paneIndex] ?? "playlist";
+      if (mode === "search") {
+        usedBySearchPane.add(playlistId);
+      } else {
+        usedByPlaylistPane.add(playlistId);
+      }
+    });
+
+    return new Set(
+      [...usedBySearchPane].filter((playlistId) => !usedByPlaylistPane.has(playlistId))
+    );
+  }, [paneModes, panePlaylistIds]);
+
+  const membershipPlaylists = useMemo(
+    () => playlists.filter((playlist) => !searchOnlyPlaylistIds.has(playlist.id)),
+    [playlists, searchOnlyPlaylistIds]
+  );
 
   const spotifyExportableSongUris = useMemo(() => {
     if (!spotifyExportSourcePlaylist) {
@@ -171,10 +201,12 @@ export function App() {
       return;
     }
     setPanePlaylistIds((prev) => [...prev, availableForNewPane.id]);
+    setPaneModes((prev) => [...prev, "playlist"]);
   }
 
   function removePane(index: number): void {
     setPanePlaylistIds((prev) => prev.filter((_, paneIndex) => paneIndex !== index));
+    setPaneModes((prev) => prev.filter((_, paneIndex) => paneIndex !== index));
   }
 
   function updatePanePlaylist(index: number, playlistId: string): void {
@@ -196,6 +228,9 @@ export function App() {
       prev.map((currentId, paneIndex) =>
         paneIndex === index ? playlistId : currentId
       )
+    );
+    setPaneModes((prev) =>
+      prev.map((mode, paneIndex) => (paneIndex === index ? "playlist" : mode))
     );
   }
 
@@ -296,6 +331,11 @@ export function App() {
             paneIndex === spotifySearchDialogPaneIndex ? searchPlaylist.id : playlistId
           )
         );
+        setPaneModes((prevModes) =>
+          prevModes.map((mode, paneIndex) =>
+            paneIndex === spotifySearchDialogPaneIndex ? "search" : mode
+          )
+        );
 
         return [...prevPlaylists, searchPlaylist];
       });
@@ -360,6 +400,13 @@ export function App() {
           createdPlaylist.externalUrl ? ` ${createdPlaylist.externalUrl}` : ""
         }`
       );
+      if (spotifyExportDialogPaneIndex !== null) {
+        setPaneModes((prev) =>
+          prev.map((mode, paneIndex) =>
+            paneIndex === spotifyExportDialogPaneIndex ? "playlist" : mode
+          )
+        );
+      }
       setSpotifyExportDialogPaneIndex(null);
     } catch (error) {
       setSpotifyStatusMessage(
@@ -402,6 +449,11 @@ export function App() {
         paneIndex === newPlaylistDialogPaneIndex ? newPlaylistId : playlistId
       )
     );
+    setPaneModes((prev) =>
+      prev.map((mode, paneIndex) =>
+        paneIndex === newPlaylistDialogPaneIndex ? "playlist" : mode
+      )
+    );
 
     setNewPlaylistDialogPaneIndex(null);
     setNewPlaylistName("");
@@ -437,7 +489,8 @@ export function App() {
       normalizedName,
       songs,
       playlists,
-      panePlaylistIds
+      panePlaylistIds,
+      paneModes
     );
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: "application/json"
@@ -480,6 +533,7 @@ export function App() {
       setSongs(parsed.songs);
       setPlaylists(parsed.playlists);
       setPanePlaylistIds(parsed.panePlaylistIds);
+      setPaneModes(parsed.paneModes);
       setProjectName(parsed.projectName ?? "Untitled Project");
       setSelectedSong(null);
       setNewPlaylistDialogPaneIndex(null);
@@ -527,6 +581,14 @@ export function App() {
           if (!playlist) {
             return null;
           }
+          const paneMode = paneModes[paneIndex] ?? "playlist";
+          const selectablePlaylists =
+            paneMode === "search"
+              ? playlists.filter(
+                  (candidate) =>
+                    !searchOnlyPlaylistIds.has(candidate.id) || candidate.id === panePlaylistId
+                )
+              : playlists.filter((candidate) => !searchOnlyPlaylistIds.has(candidate.id));
 
           return (
             <PlaylistPane
@@ -534,7 +596,8 @@ export function App() {
               paneIndex={paneIndex}
               paneCount={panePlaylistIds.length}
               playlist={playlist}
-              playlists={playlists}
+              playlists={selectablePlaylists}
+              membershipPlaylists={membershipPlaylists}
               songsById={songsById}
               selectedSong={selectedSong}
               dropTarget={dropTarget}

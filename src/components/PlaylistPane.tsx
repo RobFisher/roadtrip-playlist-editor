@@ -5,6 +5,7 @@ interface PlaylistPaneProps {
   paneCount: number;
   playlist: Playlist;
   playlists: Playlist[];
+  membershipPlaylists: Playlist[];
   songsById: Map<string, Song>;
   selectedSong: { playlistId: string; songId: string } | null;
   dropTarget: { playlistId: string; index: number } | null;
@@ -44,6 +45,7 @@ export function PlaylistPane({
   paneCount,
   playlist,
   playlists,
+  membershipPlaylists,
   songsById,
   selectedSong,
   dropTarget,
@@ -106,7 +108,7 @@ export function PlaylistPane({
           if (!song) {
             return null;
           }
-          const membershipCount = countSongMemberships(playlists, song.id);
+          const membershipCount = countSongMemberships(membershipPlaylists, song.id);
 
           return (
             <li className="song-row" key={`${playlist.id}-${song.id}`}>

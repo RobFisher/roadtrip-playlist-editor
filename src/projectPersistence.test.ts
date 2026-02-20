@@ -9,11 +9,13 @@ import { seedProjectData } from "./playlistModel.js";
 
 test("serialize and parse project state roundtrip", () => {
   const panePlaylistIds = seedProjectData.playlists.slice(0, 2).map((playlist) => playlist.id);
+  const paneModes = ["playlist", "search"] as const;
   const serialized = serializeProjectState(
     "Roadtrip Test",
     seedProjectData.songs,
     seedProjectData.playlists,
-    panePlaylistIds
+    panePlaylistIds,
+    [...paneModes]
   );
   const parsed = parseProjectState(JSON.stringify(serialized));
 
@@ -21,6 +23,7 @@ test("serialize and parse project state roundtrip", () => {
   assert.deepEqual(parsed.songs, seedProjectData.songs);
   assert.deepEqual(parsed.playlists, seedProjectData.playlists);
   assert.deepEqual(parsed.panePlaylistIds, panePlaylistIds);
+  assert.deepEqual(parsed.paneModes, paneModes);
   assert.equal(parsed.projectName, "Roadtrip Test");
 });
 
@@ -47,4 +50,18 @@ test("parse supports files without projectName", () => {
 
   const parsed = parseProjectState(JSON.stringify(legacy));
   assert.equal(parsed.projectName, undefined);
+  assert.deepEqual(parsed.paneModes, ["playlist", "playlist"]);
+});
+
+test("parse rejects invalid pane mode", () => {
+  const invalid = {
+    schemaVersion: PROJECT_SCHEMA_VERSION,
+    exportedAt: new Date().toISOString(),
+    songs: seedProjectData.songs,
+    playlists: seedProjectData.playlists,
+    panePlaylistIds: seedProjectData.playlists.slice(0, 1).map((playlist) => playlist.id),
+    paneModes: ["invalid-mode"]
+  };
+
+  assert.throws(() => parseProjectState(JSON.stringify(invalid)), /paneModes/);
 });

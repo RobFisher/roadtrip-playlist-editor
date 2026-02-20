@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Playlist, Song } from "../playlistModel.js";
+import type { PaneMode } from "../projectPersistence.js";
 import {
   getCurrentUserPlaylists,
   getCurrentUserProfile,
@@ -13,6 +14,7 @@ interface UseSpotifyImportArgs {
   setSongs: React.Dispatch<React.SetStateAction<Song[]>>;
   setPlaylists: React.Dispatch<React.SetStateAction<Playlist[]>>;
   setPanePlaylistIds: React.Dispatch<React.SetStateAction<string[]>>;
+  setPaneModes: React.Dispatch<React.SetStateAction<PaneMode[]>>;
   onDisconnectAuth: () => void;
   buildUniquePlaylistId: (existingPlaylists: Playlist[], base: string) => string;
 }
@@ -41,6 +43,7 @@ export function useSpotifyImport({
   setSongs,
   setPlaylists,
   setPanePlaylistIds,
+  setPaneModes,
   onDisconnectAuth,
   buildUniquePlaylistId
 }: UseSpotifyImportArgs): UseSpotifyImportResult {
@@ -200,6 +203,11 @@ export function useSpotifyImport({
         setPanePlaylistIds((prevPaneIds) =>
           prevPaneIds.map((playlistId, paneIndex) =>
             paneIndex === spotifyImportDialogPaneIndex ? importedPlaylist.id : playlistId
+          )
+        );
+        setPaneModes((prevModes) =>
+          prevModes.map((mode, paneIndex) =>
+            paneIndex === spotifyImportDialogPaneIndex ? "playlist" : mode
           )
         );
 
