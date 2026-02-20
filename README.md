@@ -84,6 +84,24 @@ Important:
 - Use `127.0.0.1` (not `localhost`) for the redirect URI.
 - Do not put Spotify client secret in frontend code. PKCE flow here uses only client ID.
 
+## Google Login Setup (Local + Deployed)
+
+This app uses Google Identity Services OAuth token flow for app login identity.
+
+- Required env var:
+  - `VITE_GOOGLE_CLIENT_ID`
+
+For local development, add to `.env.local`:
+
+```bash
+VITE_GOOGLE_CLIENT_ID=your_google_oauth_web_client_id
+```
+
+Important:
+- Add `http://127.0.0.1:5173` to Authorized JavaScript origins in your Google OAuth client.
+- Make sure OAuth consent screen configuration allows your test users.
+- No Google client secret is used in frontend code.
+
 ## AWS Deployment (Optional At This Stage)
 
 Deploying to AWS is useful for sharing a hosted frontend URL, but it is optional right now.

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "./app.css";
 import {
   removeSongFromPlaylist,
@@ -11,6 +11,7 @@ import {
   type PaneMode
 } from "./projectPersistence.js";
 import { DeleteListDialog } from "./components/DeleteListDialog.js";
+import { GoogleDisplayNameDialog } from "./components/GoogleDisplayNameDialog.js";
 import { NewPlaylistDialog } from "./components/NewPlaylistDialog.js";
 import { PlaylistPane } from "./components/PlaylistPane.js";
 import { SaveProjectDialog } from "./components/SaveProjectDialog.js";
@@ -20,6 +21,7 @@ import { SpotifySearchDialog } from "./components/SpotifySearchDialog.js";
 import { WorkspaceHeader } from "./components/WorkspaceHeader.js";
 import { useSpotifyAuth } from "./hooks/useSpotifyAuth.js";
 import { usePaneDragDrop } from "./hooks/usePaneDragDrop.js";
+import { useGoogleAuth } from "./hooks/useGoogleAuth.js";
 import { useSpotifyImport } from "./hooks/useSpotifyImport.js";
 import {
   addItemsToSpotifyPlaylist,
@@ -33,6 +35,7 @@ const NEW_PLAYLIST_VALUE = "__new_playlist__";
 const IMPORT_SPOTIFY_VALUE = "__import_spotify__";
 const SEARCH_SPOTIFY_VALUE = "__search_spotify__";
 const SPOTIFY_SEARCH_PAGE_SIZE = 10;
+const GOOGLE_DISPLAY_NAME_BY_USER_ID_KEY = "google_display_name_by_user_id";
 
 interface PaneSearchState {
   query: string;
@@ -46,6 +49,26 @@ function normalizePlaylistName(value: string): string {
 
 function normalizeProjectName(value: string): string {
   return value.trim().replace(/\s+/g, " ");
+}
+
+function normalizeDisplayName(value: string): string {
+  return value.trim().replace(/\s+/g, " ");
+}
+
+function parseDisplayNameMap(raw: string | null): Record<string, string> {
+  if (!raw) {
+    return {};
+  }
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .map(([userId, name]) => [userId, typeof name === "string" ? name : ""])
+        .filter(([userId, name]) => userId.trim().length > 0 && name.trim().length > 0)
+    );
+  } catch {
+    return {};
+  }
 }
 
 function toFilenameSlug(projectName: string): string {
@@ -103,6 +126,19 @@ export function App() {
   const [spotifySearchLoadMorePaneIndex, setSpotifySearchLoadMorePaneIndex] = useState<
     number | null
   >(null);
+  const [googleDisplayNameByUserId, setGoogleDisplayNameByUserId] = useState<
+    Record<string, string>
+  >(() => parseDisplayNameMap(localStorage.getItem(GOOGLE_DISPLAY_NAME_BY_USER_ID_KEY)));
+  const [googleDisplayNameDraft, setGoogleDisplayNameDraft] = useState("");
+  const [googleDisplayNameDialogOpen, setGoogleDisplayNameDialogOpen] = useState(false);
+  const {
+    googleToken,
+    googleUser,
+    googleAuthError,
+    googleAuthLoading,
+    connectGoogle,
+    disconnectGoogle
+  } = useGoogleAuth();
   const {
     spotifyToken,
     spotifyAuthError,
@@ -157,12 +193,43 @@ export function App() {
   });
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
 
+  const googleConnected = Boolean(googleToken && googleUser);
+  const googleDisplayName = googleUser ? googleDisplayNameByUserId[googleUser.sub] ?? null : null;
+  const googleStatus = googleConnected
+    ? googleDisplayName
+      ? `Google: ${googleDisplayName}`
+      : "Google connected. Set your display name to continue."
+    : null;
   const spotifyConnected = Boolean(spotifyToken);
   const spotifyBusy =
     spotifyLoading ||
     spotifyExportLoading ||
     spotifySearchLoading ||
     spotifySearchLoadMorePaneIndex !== null;
+
+  useEffect(() => {
+    localStorage.setItem(
+      GOOGLE_DISPLAY_NAME_BY_USER_ID_KEY,
+      JSON.stringify(googleDisplayNameByUserId)
+    );
+  }, [googleDisplayNameByUserId]);
+
+  useEffect(() => {
+    if (!googleUser) {
+      setGoogleDisplayNameDialogOpen(false);
+      setGoogleDisplayNameDraft("");
+      return;
+    }
+
+    const existingDisplayName = googleDisplayNameByUserId[googleUser.sub];
+    if (existingDisplayName) {
+      setGoogleDisplayNameDialogOpen(false);
+      return;
+    }
+
+    setGoogleDisplayNameDraft(normalizeDisplayName(googleUser.name));
+    setGoogleDisplayNameDialogOpen(true);
+  }, [googleDisplayNameByUserId, googleUser]);
 
   const spotifyExportSourcePlaylist = useMemo(() => {
     if (spotifyExportDialogPaneIndex === null) {
@@ -636,6 +703,35 @@ export function App() {
     void connectSpotify();
   }
 
+  function toggleGoogleConnection(): void {
+    if (googleConnected) {
+      void disconnectGoogle();
+      setGoogleDisplayNameDialogOpen(false);
+      return;
+    }
+    void connectGoogle();
+  }
+
+  function saveGoogleDisplayName(): void {
+    if (!googleUser) {
+      return;
+    }
+    const normalizedDisplayName = normalizeDisplayName(googleDisplayNameDraft);
+    if (!normalizedDisplayName) {
+      return;
+    }
+    setGoogleDisplayNameByUserId((prev) => ({
+      ...prev,
+      [googleUser.sub]: normalizedDisplayName
+    }));
+    setGoogleDisplayNameDialogOpen(false);
+  }
+
+  function cancelGoogleDisplayNameSetup(): void {
+    setGoogleDisplayNameDialogOpen(false);
+    void disconnectGoogle();
+  }
+
   function createPlaylistFromDialog(): void {
     if (newPlaylistDialogPaneIndex === null) {
       return;
@@ -773,6 +869,10 @@ export function App() {
         projectName={projectName}
         canAddPane={Boolean(availableForNewPane)}
         dragModeLabel={dragModeLabel}
+        googleConnected={googleConnected}
+        googleBusy={googleAuthLoading}
+        googleAuthError={googleAuthError}
+        googleStatus={googleStatus}
         spotifyConnected={spotifyConnected}
         spotifyBusy={spotifyBusy}
         spotifyAuthError={spotifyAuthError}
@@ -781,6 +881,7 @@ export function App() {
         onAddPane={addPane}
         onSaveProject={openSaveProjectDialog}
         onLoadProject={openLoadProjectPicker}
+        onToggleGoogleConnection={toggleGoogleConnection}
         onToggleSpotifyConnection={toggleSpotifyConnection}
       />
       <input
@@ -914,6 +1015,14 @@ export function App() {
         }
         onCancel={closeDeleteListDialog}
         onConfirm={confirmDeleteList}
+      />
+      <GoogleDisplayNameDialog
+        isOpen={googleDisplayNameDialogOpen}
+        email={googleUser?.email ?? ""}
+        displayName={googleDisplayNameDraft}
+        onDisplayNameChange={setGoogleDisplayNameDraft}
+        onSave={saveGoogleDisplayName}
+        onCancel={cancelGoogleDisplayNameSetup}
       />
     </main>
   );

@@ -76,6 +76,14 @@ body {
   background: #2f4f87;
 }
 
+.workspace-actions .google-connected {
+  background: #1657cc;
+}
+
+.workspace-actions .google-disconnected {
+  background: #2f4f87;
+}
+
 .workspace-status-lines {
   display: flex;
   flex-direction: column;
