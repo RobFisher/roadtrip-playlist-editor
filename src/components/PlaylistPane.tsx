@@ -10,6 +10,7 @@ interface PlaylistPaneProps {
   dropTarget: { playlistId: string; index: number } | null;
   newPlaylistValue: string;
   importSpotifyValue: string;
+  searchSpotifyValue: string;
   onUpdatePanePlaylist: (paneIndex: number, playlistId: string) => void;
   onDeleteSelectedFromPlaylist: (playlistId: string) => void;
   onOpenSpotifyExport: (paneIndex: number) => void;
@@ -48,6 +49,7 @@ export function PlaylistPane({
   dropTarget,
   newPlaylistValue,
   importSpotifyValue,
+  searchSpotifyValue,
   onUpdatePanePlaylist,
   onDeleteSelectedFromPlaylist,
   onOpenSpotifyExport,
@@ -78,6 +80,7 @@ export function PlaylistPane({
           ))}
           <option value={newPlaylistValue}>New playlist...</option>
           <option value={importSpotifyValue}>Import from Spotify...</option>
+          <option value={searchSpotifyValue}>Spotify search...</option>
         </select>
         <button
           className="pane-delete"

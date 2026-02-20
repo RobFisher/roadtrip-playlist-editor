@@ -11,15 +11,21 @@ import { PlaylistPane } from "./components/PlaylistPane.js";
 import { SaveProjectDialog } from "./components/SaveProjectDialog.js";
 import { SpotifyExportDialog } from "./components/SpotifyExportDialog.js";
 import { SpotifyImportDialog } from "./components/SpotifyImportDialog.js";
+import { SpotifySearchDialog } from "./components/SpotifySearchDialog.js";
 import { WorkspaceHeader } from "./components/WorkspaceHeader.js";
 import { useSpotifyAuth } from "./hooks/useSpotifyAuth.js";
 import { usePaneDragDrop } from "./hooks/usePaneDragDrop.js";
 import { useSpotifyImport } from "./hooks/useSpotifyImport.js";
-import { addItemsToSpotifyPlaylist, createSpotifyPlaylist } from "./spotify.js";
+import {
+  addItemsToSpotifyPlaylist,
+  createSpotifyPlaylist,
+  searchSpotifyTracks
+} from "./spotify.js";
 
 const initialPanePlaylistIds = seedProjectData.playlists.slice(0, 3).map((p) => p.id);
 const NEW_PLAYLIST_VALUE = "__new_playlist__";
 const IMPORT_SPOTIFY_VALUE = "__import_spotify__";
+const SEARCH_SPOTIFY_VALUE = "__search_spotify__";
 
 function normalizePlaylistName(value: string): string {
   return value.trim().replace(/\s+/g, " ");
@@ -69,6 +75,16 @@ export function App() {
   >(null);
   const [spotifyExportPlaylistName, setSpotifyExportPlaylistName] = useState("");
   const [spotifyExportLoading, setSpotifyExportLoading] = useState(false);
+  const [spotifySearchDialogPaneIndex, setSpotifySearchDialogPaneIndex] = useState<
+    number | null
+  >(null);
+  const [spotifySearchQuery, setSpotifySearchQuery] = useState("");
+  const [spotifySearchMarket, setSpotifySearchMarket] = useState("US");
+  const [spotifySearchLimit, setSpotifySearchLimit] = useState(5);
+  const [spotifySearchOffset, setSpotifySearchOffset] = useState(0);
+  const [spotifySearchIncludeExternalAudio, setSpotifySearchIncludeExternalAudio] =
+    useState(false);
+  const [spotifySearchLoading, setSpotifySearchLoading] = useState(false);
   const {
     spotifyToken,
     spotifyAuthError,
@@ -123,7 +139,7 @@ export function App() {
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
 
   const spotifyConnected = Boolean(spotifyToken);
-  const spotifyBusy = spotifyLoading || spotifyExportLoading;
+  const spotifyBusy = spotifyLoading || spotifyExportLoading || spotifySearchLoading;
 
   const spotifyExportSourcePlaylist = useMemo(() => {
     if (spotifyExportDialogPaneIndex === null) {
@@ -171,6 +187,10 @@ export function App() {
       openSpotifyImportDialog(index);
       return;
     }
+    if (playlistId === SEARCH_SPOTIFY_VALUE) {
+      openSpotifySearchDialog(index);
+      return;
+    }
 
     setPanePlaylistIds((prev) =>
       prev.map((currentId, paneIndex) =>
@@ -194,6 +214,112 @@ export function App() {
       return;
     }
     setSpotifyExportDialogPaneIndex(null);
+  }
+
+  function openSpotifySearchDialog(paneIndex: number): void {
+    setSpotifySearchDialogPaneIndex(paneIndex);
+  }
+
+  function closeSpotifySearchDialog(): void {
+    setSpotifySearchDialogPaneIndex(null);
+  }
+
+  async function searchSpotifyForPane(): Promise<void> {
+    if (!spotifyToken || spotifySearchDialogPaneIndex === null) {
+      setSpotifyStatusMessage("Connect Spotify before searching.");
+      return;
+    }
+
+    const query = normalizePlaylistName(spotifySearchQuery);
+    if (!query) {
+      setSpotifyStatusMessage("Spotify search query is required.");
+      return;
+    }
+
+    const limit = Math.max(1, Math.min(spotifySearchLimit, 10));
+    const offset = Math.max(0, spotifySearchOffset);
+    const market = spotifySearchMarket.trim().toUpperCase();
+    if (market.length > 0 && market.length !== 2) {
+      setSpotifyStatusMessage("Market must be a 2-letter country code like US or GB.");
+      return;
+    }
+
+    setSpotifySearchLoading(true);
+    setSpotifyStatusMessage(`Searching Spotify for "${query}"...`);
+
+    try {
+      const result = await searchSpotifyTracks(spotifyToken, {
+        query,
+        market: market || undefined,
+        limit,
+        offset,
+        includeExternalAudio: spotifySearchIncludeExternalAudio
+      });
+
+      const tracksByLocalSongId = new Map(
+        result.tracks.map((track) => [
+          `spotify:${track.id}`,
+          {
+            id: `spotify:${track.id}`,
+            title: track.title,
+            artist: track.artists,
+            artworkUrl: track.artworkUrl,
+            spotifyUri: track.spotifyUri
+          }
+        ])
+      );
+
+      setSongs((prevSongs) => {
+        const merged = [...prevSongs];
+        const existing = new Set(prevSongs.map((song) => song.id));
+        for (const [songId, song] of tracksByLocalSongId) {
+          if (!existing.has(songId)) {
+            merged.push(song);
+          }
+        }
+        return merged;
+      });
+
+      setPlaylists((prevPlaylists) => {
+        const uniquePlaylistId = buildUniquePlaylistId(
+          prevPlaylists,
+          `playlist-search-${Date.now()}`
+        );
+        const searchPlaylist: Playlist = {
+          id: uniquePlaylistId,
+          name: `Search: ${query}`,
+          songIds: result.tracks.map((track) => `spotify:${track.id}`)
+        };
+
+        setPanePlaylistIds((prevPaneIds) =>
+          prevPaneIds.map((playlistId, paneIndex) =>
+            paneIndex === spotifySearchDialogPaneIndex ? searchPlaylist.id : playlistId
+          )
+        );
+
+        return [...prevPlaylists, searchPlaylist];
+      });
+
+      setSelectedSong(null);
+      setSpotifyStatusMessage(
+        `Search added ${result.tracks.length} track(s) to pane ${
+          spotifySearchDialogPaneIndex + 1
+        } (${offset + 1}-${offset + result.tracks.length} of ${result.total}).`
+      );
+      closeSpotifySearchDialog();
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("(429)")) {
+        setSpotifyStatusMessage(
+          `Spotify search is rate-limited right now. Retry in a moment. ${error.message}`
+        );
+      } else {
+        setSpotifyStatusMessage(
+          error instanceof Error ? error.message : "Spotify search failed."
+        );
+      }
+    } finally {
+      setSpotifySearchLoading(false);
+    }
   }
 
   async function exportActivePaneToSpotify(): Promise<void> {
@@ -358,6 +484,7 @@ export function App() {
       setSelectedSong(null);
       setNewPlaylistDialogPaneIndex(null);
       closeSpotifyImportDialog();
+      closeSpotifySearchDialog();
       setProjectStatus(
         `Loaded "${parsed.projectName ?? "Untitled Project"}" with ${parsed.playlists.length} playlist(s) into ${parsed.panePlaylistIds.length} pane(s).`
       );
@@ -413,6 +540,7 @@ export function App() {
               dropTarget={dropTarget}
               newPlaylistValue={NEW_PLAYLIST_VALUE}
               importSpotifyValue={IMPORT_SPOTIFY_VALUE}
+              searchSpotifyValue={SEARCH_SPOTIFY_VALUE}
               onUpdatePanePlaylist={updatePanePlaylist}
               onDeleteSelectedFromPlaylist={deleteSelectedFromPlaylist}
               onOpenSpotifyExport={openSpotifyExportDialog}
@@ -471,6 +599,24 @@ export function App() {
         onClose={closeSpotifyExportDialog}
         onPlaylistNameChange={setSpotifyExportPlaylistName}
         onExport={exportActivePaneToSpotify}
+      />
+      <SpotifySearchDialog
+        isOpen={spotifySearchDialogPaneIndex !== null}
+        paneIndex={spotifySearchDialogPaneIndex}
+        spotifyConnected={spotifyConnected}
+        loading={spotifySearchLoading}
+        query={spotifySearchQuery}
+        market={spotifySearchMarket}
+        limit={spotifySearchLimit}
+        offset={spotifySearchOffset}
+        includeExternalAudio={spotifySearchIncludeExternalAudio}
+        onClose={closeSpotifySearchDialog}
+        onQueryChange={setSpotifySearchQuery}
+        onMarketChange={setSpotifySearchMarket}
+        onLimitChange={setSpotifySearchLimit}
+        onOffsetChange={setSpotifySearchOffset}
+        onIncludeExternalAudioChange={setSpotifySearchIncludeExternalAudio}
+        onSearch={searchSpotifyForPane}
       />
     </main>
   );

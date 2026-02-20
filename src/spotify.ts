@@ -31,6 +31,14 @@ export interface SpotifyTrackSummary {
   spotifyUri: string;
 }
 
+export interface SpotifyTrackSearchParams {
+  query: string;
+  market?: string;
+  limit?: number;
+  offset?: number;
+  includeExternalAudio?: boolean;
+}
+
 export interface SpotifyAuthConfig {
   clientId: string;
   redirectUri: string;
@@ -340,4 +348,79 @@ export async function addItemsToSpotifyPlaylist(
       { uris: batch }
     );
   }
+}
+
+export async function searchSpotifyTracks(
+  accessToken: string,
+  params: SpotifyTrackSearchParams
+): Promise<{ tracks: SpotifyTrackSummary[]; total: number }> {
+  const query = params.query.trim();
+  if (!query) {
+    return { tracks: [], total: 0 };
+  }
+
+  const limit = Math.max(1, Math.min(params.limit ?? 5, 10));
+  const offset = Math.max(0, params.offset ?? 0);
+  const searchParams = new URLSearchParams({
+    q: query,
+    type: "track",
+    limit: String(limit),
+    offset: String(offset)
+  });
+
+  const market = params.market?.trim().toUpperCase();
+  if (market) {
+    searchParams.set("market", market);
+  }
+
+  if (params.includeExternalAudio) {
+    searchParams.set("include_external", "audio");
+  }
+
+  type SearchResponse = {
+    tracks?: {
+      total?: number;
+      items?: Array<{
+        id?: string | null;
+        name?: string;
+        uri?: string;
+        artists?: Array<{ name?: string }>;
+        album?: { images?: Array<{ url?: string }> };
+      }>;
+    };
+  };
+
+  const response = await spotifyGet<SearchResponse>(
+    `/search?${searchParams.toString()}`,
+    accessToken
+  );
+
+  const items = response.tracks?.items ?? [];
+  const tracks: SpotifyTrackSummary[] = items
+    .map((item, index) => {
+      const spotifyUri = item.uri?.trim() ?? "";
+      const fallbackId = spotifyUri
+        ? spotifyUri.replace("spotify:", "spotify_").replace(/:/g, "_")
+        : `search_result_${offset + index + 1}`;
+      const trackId = item.id?.trim() || fallbackId;
+      const artistNames =
+        item.artists
+          ?.map((artist) => artist.name?.trim() ?? "")
+          .filter((name) => name.length > 0)
+          .join(", ") ?? "";
+
+      return {
+        id: trackId,
+        title: item.name?.trim() || "Unknown title",
+        artists: artistNames || "Unknown artist",
+        artworkUrl: item.album?.images?.[0]?.url ?? "",
+        spotifyUri
+      };
+    })
+    .filter((track) => track.id.length > 0);
+
+  return {
+    tracks,
+    total: response.tracks?.total ?? tracks.length
+  };
 }

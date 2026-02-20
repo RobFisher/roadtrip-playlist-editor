@@ -317,6 +317,22 @@ h1 {
   font: inherit;
 }
 
+.modal-inline-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.modal-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-checkbox input {
+  margin: 0;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
