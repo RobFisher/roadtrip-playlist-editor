@@ -89,9 +89,8 @@ Goal: multi-user collaboration with minimum PII.
 Tasks:
 
 1. Add Google OIDC sign-in for app identity.
-2. Store only email for user identity records.
-3. Add invite-by-email flow.
-4. Persist project/playlist/song relationships in DynamoDB.
+3. Store minimum information for user identity records.
+3. Persist projecs in DynamoDB.
 
 Exit criteria:
 
