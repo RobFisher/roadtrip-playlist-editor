@@ -85,10 +85,7 @@ export function App() {
     number | null
   >(null);
   const [spotifySearchQuery, setSpotifySearchQuery] = useState("");
-  const [spotifySearchLimit, setSpotifySearchLimit] = useState(5);
   const [spotifySearchOffset, setSpotifySearchOffset] = useState(0);
-  const [spotifySearchIncludeExternalAudio, setSpotifySearchIncludeExternalAudio] =
-    useState(false);
   const [spotifySearchLoading, setSpotifySearchLoading] = useState(false);
   const {
     spotifyToken,
@@ -270,7 +267,6 @@ export function App() {
       return;
     }
 
-    const limit = Math.max(1, Math.min(spotifySearchLimit, 10));
     const offset = Math.max(0, spotifySearchOffset);
 
     setSpotifySearchLoading(true);
@@ -279,9 +275,8 @@ export function App() {
     try {
       const result = await searchSpotifyTracks(spotifyToken, {
         query,
-        limit,
-        offset,
-        includeExternalAudio: spotifySearchIncludeExternalAudio
+        limit: 10,
+        offset
       });
 
       const tracksByLocalSongId = new Map(
@@ -662,14 +657,10 @@ export function App() {
         spotifyConnected={spotifyConnected}
         loading={spotifySearchLoading}
         query={spotifySearchQuery}
-        limit={spotifySearchLimit}
         offset={spotifySearchOffset}
-        includeExternalAudio={spotifySearchIncludeExternalAudio}
         onClose={closeSpotifySearchDialog}
         onQueryChange={setSpotifySearchQuery}
-        onLimitChange={setSpotifySearchLimit}
         onOffsetChange={setSpotifySearchOffset}
-        onIncludeExternalAudioChange={setSpotifySearchIncludeExternalAudio}
         onSearch={searchSpotifyForPane}
       />
     </main>

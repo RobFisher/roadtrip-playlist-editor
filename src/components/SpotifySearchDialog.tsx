@@ -4,14 +4,10 @@ interface SpotifySearchDialogProps {
   spotifyConnected: boolean;
   loading: boolean;
   query: string;
-  limit: number;
   offset: number;
-  includeExternalAudio: boolean;
   onClose: () => void;
   onQueryChange: (value: string) => void;
-  onLimitChange: (value: number) => void;
   onOffsetChange: (value: number) => void;
-  onIncludeExternalAudioChange: (value: boolean) => void;
   onSearch: () => Promise<void>;
 }
 
@@ -21,14 +17,10 @@ export function SpotifySearchDialog({
   spotifyConnected,
   loading,
   query,
-  limit,
   offset,
-  includeExternalAudio,
   onClose,
   onQueryChange,
-  onLimitChange,
   onOffsetChange,
-  onIncludeExternalAudioChange,
   onSearch
 }: SpotifySearchDialogProps) {
   if (!isOpen || paneIndex === null) {
@@ -62,19 +54,6 @@ export function SpotifySearchDialog({
             </p>
             <div className="modal-inline-fields">
               <label>
-                Results per search
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={limit}
-                  onChange={(event) => {
-                    const parsed = Number.parseInt(event.target.value, 10);
-                    onLimitChange(Number.isNaN(parsed) ? 5 : parsed);
-                  }}
-                />
-              </label>
-              <label>
                 Offset
                 <input
                   type="number"
@@ -87,14 +66,6 @@ export function SpotifySearchDialog({
                 />
               </label>
             </div>
-            <label className="modal-checkbox">
-              <input
-                type="checkbox"
-                checked={includeExternalAudio}
-                onChange={(event) => onIncludeExternalAudioChange(event.target.checked)}
-              />
-              Include externally hosted audio where available
-            </label>
           </>
         )}
 

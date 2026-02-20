@@ -36,7 +36,6 @@ export interface SpotifyTrackSearchParams {
   market?: string;
   limit?: number;
   offset?: number;
-  includeExternalAudio?: boolean;
 }
 
 export interface SpotifyAuthConfig {
@@ -373,9 +372,7 @@ export async function searchSpotifyTracks(
     searchParams.set("market", market);
   }
 
-  if (params.includeExternalAudio) {
-    searchParams.set("include_external", "audio");
-  }
+  searchParams.set("include_external", "audio");
 
   type SearchResponse = {
     tracks?: {
