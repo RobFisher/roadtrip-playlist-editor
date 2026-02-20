@@ -34,6 +34,10 @@ Dependency policy: avoid upgrading npm dependencies unless explicitly requested.
   ```bash
   npm run dev
   ```
+- Start local backend placeholder API:
+  ```bash
+  npm run dev:api
+  ```
 - Build static assets:
   ```bash
   npm run build
@@ -102,6 +106,31 @@ Important:
 - Make sure OAuth consent screen configuration allows your test users.
 - No Google client secret is used in frontend code.
 
+## Backend API Setup (Local + Deployed)
+
+- Optional env var:
+  - `VITE_API_BASE_URL`
+    - if unset, frontend calls relative `/api/*` paths.
+    - in local dev, Vite proxies `/api/*` to `http://127.0.0.1:8787` by default.
+    - override proxy target with `VITE_LOCAL_API_PROXY_TARGET`.
+
+For local development with current backend placeholder:
+
+1. Terminal A:
+   ```bash
+   npm run dev:api
+   ```
+2. Terminal B:
+   ```bash
+   npm run dev
+   ```
+
+For deployed frontend calling deployed API directly, set:
+
+```bash
+VITE_API_BASE_URL=https://your-api-id.execute-api.<region>.amazonaws.com
+```
+
 ## AWS Deployment (Optional At This Stage)
 
 Deploying to AWS is useful for sharing a hosted frontend URL, but it is optional right now.
@@ -124,6 +153,12 @@ Then from this repo:
 npm run deploy:dev
 ```
 
+To deploy backend + frontend together:
+
+```bash
+npm run deploy:all:dev
+```
+
 If you use a named CLI profile:
 
 ```bash
@@ -136,6 +171,12 @@ To tear down and stop most ongoing costs:
 npm run destroy:dev
 ```
 
+To tear down only backend:
+
+```bash
+npm run destroy:backend:dev
+```
+
 ## Tooling Included in the Nix Environment
 
 - `node` / `npm`
@@ -145,3 +186,4 @@ npm run destroy:dev
 ## Deployment Documentation
 
 - AWS deploy/IAM/DNS/cost/teardown playbook: `docs/AWS_DEPLOYMENT_PLAYBOOK.md`
+- Backend implementation plan (API + DynamoDB + sessions): `docs/BACKEND_IMPLEMENTATION_PLAN.md`

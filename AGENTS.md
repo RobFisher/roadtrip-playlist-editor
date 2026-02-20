@@ -19,6 +19,7 @@ Keep this file guide up to date whenever files are added, removed, renamed, or r
 - `src/projectPersistence.ts`: Versioned JSON schema for local project save/load plus strict parser/validation for imported files.
 - `src/spotify.ts`: Spotify API/auth helpers (PKCE URL + token exchange, profile/playlists/items fetch, playlist create/add-items, scope checks).
 - `src/google.ts`: Google Identity Services helpers (script load, OAuth token request, token revoke, and user profile fetch).
+- `src/backendApi.ts`: Backend API base-url helpers and typed client calls for auth/session probing.
 - `src/app.css`: Global UI styles for workspace, panes, songs, and dialogs.
 - `src/components/GoogleDisplayNameDialog.tsx`: First-login modal for capturing app display name after Google sign-in.
 - `src/components/WorkspaceHeader.tsx`: Header section with add-pane action and status indicators.
@@ -34,6 +35,9 @@ Keep this file guide up to date whenever files are added, removed, renamed, or r
 - `src/hooks/usePaneDragDrop.ts`: Encapsulates pane/song drag-and-drop state and handlers (drag mode label, drop target, payload transfer, copy/move drop application).
 - `src/hooks/useSpotifyImport.ts`: Encapsulates Spotify playlist import workflow state/logic (dialog state, playlist loading, import action, status, dev curl debug generation).
 - `src/projectPersistence.test.ts`: Schema parser/serializer tests for project save/load compatibility and validation errors.
+- `lib/backend-stack.ts`: CDK backend infrastructure skeleton (HTTP API, Lambda router, DynamoDB table + GSI, outputs).
+- `backend/api-handler.mjs`: Minimal API router for backend placeholders (`/api/health`, `/api/me`) used by Lambda and local dev server.
+- `backend/local-api-server.mjs`: Node HTTP wrapper to run the backend placeholder API locally on `127.0.0.1:8787`.
 
 ## Refactor Convention
 

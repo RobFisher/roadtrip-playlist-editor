@@ -28,6 +28,7 @@ import {
   createSpotifyPlaylist,
   searchSpotifyTracks
 } from "./spotify.js";
+import { getBackendMe } from "./backendApi.js";
 
 const initialPanePlaylistIds = seedProjectData.playlists.slice(0, 3).map((p) => p.id);
 const initialPaneModes: PaneMode[] = initialPanePlaylistIds.map(() => "playlist");
@@ -192,6 +193,7 @@ export function App() {
     buildUniquePlaylistId
   });
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
+  const [backendStatus, setBackendStatus] = useState<string | null>(null);
 
   const googleConnected = Boolean(googleToken && googleUser);
   const googleDisplayName = googleUser ? googleDisplayNameByUserId[googleUser.sub] ?? null : null;
@@ -230,6 +232,35 @@ export function App() {
     setGoogleDisplayNameDraft(normalizeDisplayName(googleUser.name));
     setGoogleDisplayNameDialogOpen(true);
   }, [googleDisplayNameByUserId, googleUser]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        const me = await getBackendMe();
+        if (cancelled) {
+          return;
+        }
+        setBackendStatus(
+          me.authenticated
+            ? `Backend session active for ${me.user?.displayName ?? me.user?.email ?? "user"}.`
+            : "Backend reachable. No active app session."
+        );
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        setBackendStatus("Backend not reachable from this environment.");
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const spotifyExportSourcePlaylist = useMemo(() => {
     if (spotifyExportDialogPaneIndex === null) {
@@ -873,6 +904,7 @@ export function App() {
         googleBusy={googleAuthLoading}
         googleAuthError={googleAuthError}
         googleStatus={googleStatus}
+        backendStatus={backendStatus}
         spotifyConnected={spotifyConnected}
         spotifyBusy={spotifyBusy}
         spotifyAuthError={spotifyAuthError}

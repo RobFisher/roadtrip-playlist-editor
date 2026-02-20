@@ -1,0 +1,90 @@
+import { CfnOutput, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
+import {
+  AttributeType,
+  BillingMode,
+  Table
+} from "aws-cdk-lib/aws-dynamodb";
+import {
+  CorsHttpMethod,
+  HttpApi,
+  HttpMethod
+} from "aws-cdk-lib/aws-apigatewayv2";
+import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import { Runtime, Function as LambdaFunction, Code } from "aws-cdk-lib/aws-lambda";
+import { Construct } from "constructs";
+
+export interface BackendStackProps extends StackProps {
+  envName: string;
+}
+
+export class BackendStack extends Stack {
+  public readonly apiBaseUrl: string;
+
+  constructor(scope: Construct, id: string, props: BackendStackProps) {
+    super(scope, id, props);
+
+    const appTable = new Table(this, "AppTable", {
+      tableName: undefined,
+      partitionKey: { name: "pk", type: AttributeType.STRING },
+      sortKey: { name: "sk", type: AttributeType.STRING },
+      billingMode: BillingMode.PAY_PER_REQUEST,
+      removalPolicy: RemovalPolicy.DESTROY
+    });
+
+    appTable.addGlobalSecondaryIndex({
+      indexName: "gsi1",
+      partitionKey: { name: "gsi1pk", type: AttributeType.STRING },
+      sortKey: { name: "gsi1sk", type: AttributeType.STRING }
+    });
+
+    const apiHandler = new LambdaFunction(this, "ApiHandler", {
+      runtime: Runtime.NODEJS_22_X,
+      handler: "api-handler.handler",
+      code: Code.fromAsset("backend"),
+      environment: {
+        APP_TABLE_NAME: appTable.tableName,
+        ENV_NAME: props.envName
+      }
+    });
+
+    appTable.grantReadWriteData(apiHandler);
+
+    const api = new HttpApi(this, "HttpApi", {
+      corsPreflight: {
+        allowOrigins: ["http://127.0.0.1:5173"],
+        allowMethods: [
+          CorsHttpMethod.GET,
+          CorsHttpMethod.POST,
+          CorsHttpMethod.PUT,
+          CorsHttpMethod.OPTIONS
+        ],
+        allowHeaders: ["content-type", "authorization"],
+        allowCredentials: true
+      }
+    });
+
+    const integration = new HttpLambdaIntegration("ApiHandlerIntegration", apiHandler);
+    api.addRoutes({
+      path: "/api/health",
+      methods: [HttpMethod.GET],
+      integration
+    });
+    api.addRoutes({
+      path: "/api/me",
+      methods: [HttpMethod.GET],
+      integration
+    });
+
+    this.apiBaseUrl = api.apiEndpoint;
+
+    new CfnOutput(this, "Environment", {
+      value: props.envName
+    });
+    new CfnOutput(this, "AppTableName", {
+      value: appTable.tableName
+    });
+    new CfnOutput(this, "ApiBaseUrl", {
+      value: api.apiEndpoint
+    });
+  }
+}

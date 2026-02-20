@@ -10,13 +10,17 @@
   "scripts": {
     "setup": "npm ci",
     "dev": "vite",
+    "dev:api": "node backend/local-api-server.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "start": "vite preview",
     "lint": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.node.json --noEmit",
     "test": "tsx --test src/**/*.test.ts",
     "cdk:synth": "npm run build && cdk synth",
+    "deploy:backend:dev": "cdk deploy RoadtripPlaylistEditorBackend-dev --require-approval never",
     "deploy:dev": "npm run build && cdk deploy RoadtripPlaylistEditor-dev --require-approval never",
+    "deploy:all:dev": "npm run build && cdk deploy RoadtripPlaylistEditorBackend-dev RoadtripPlaylistEditor-dev --require-approval never",
+    "destroy:backend:dev": "cdk destroy RoadtripPlaylistEditorBackend-dev --force",
     "destroy:dev": "cdk destroy RoadtripPlaylistEditor-dev --force"
   },
   "dependencies": {

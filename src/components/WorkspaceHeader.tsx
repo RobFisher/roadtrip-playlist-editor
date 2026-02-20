@@ -6,6 +6,7 @@ interface WorkspaceHeaderProps {
   googleBusy: boolean;
   googleAuthError: string | null;
   googleStatus: string | null;
+  backendStatus: string | null;
   spotifyConnected: boolean;
   spotifyBusy: boolean;
   spotifyAuthError: string | null;
@@ -26,6 +27,7 @@ export function WorkspaceHeader({
   googleBusy,
   googleAuthError,
   googleStatus,
+  backendStatus,
   spotifyConnected,
   spotifyBusy,
   spotifyAuthError,
@@ -80,6 +82,7 @@ export function WorkspaceHeader({
           <span className="drag-mode-indicator">Current drag mode: {dragModeLabel}</span>
           {googleAuthError && <span className="status-error">{googleAuthError}</span>}
           {googleStatus && <span className="status-info">{googleStatus}</span>}
+          {backendStatus && <span className="status-info">{backendStatus}</span>}
           {spotifyAuthError && <span className="status-error">{spotifyAuthError}</span>}
           {spotifyStatus && <span className="status-info">{spotifyStatus}</span>}
           {projectStatus && <span className="status-info">{projectStatus}</span>}
