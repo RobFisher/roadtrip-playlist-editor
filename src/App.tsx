@@ -85,7 +85,6 @@ export function App() {
     number | null
   >(null);
   const [spotifySearchQuery, setSpotifySearchQuery] = useState("");
-  const [spotifySearchMarket, setSpotifySearchMarket] = useState("US");
   const [spotifySearchLimit, setSpotifySearchLimit] = useState(5);
   const [spotifySearchOffset, setSpotifySearchOffset] = useState(0);
   const [spotifySearchIncludeExternalAudio, setSpotifySearchIncludeExternalAudio] =
@@ -273,11 +272,6 @@ export function App() {
 
     const limit = Math.max(1, Math.min(spotifySearchLimit, 10));
     const offset = Math.max(0, spotifySearchOffset);
-    const market = spotifySearchMarket.trim().toUpperCase();
-    if (market.length > 0 && market.length !== 2) {
-      setSpotifyStatusMessage("Market must be a 2-letter country code like US or GB.");
-      return;
-    }
 
     setSpotifySearchLoading(true);
     setSpotifyStatusMessage(`Searching Spotify for "${query}"...`);
@@ -285,7 +279,6 @@ export function App() {
     try {
       const result = await searchSpotifyTracks(spotifyToken, {
         query,
-        market: market || undefined,
         limit,
         offset,
         includeExternalAudio: spotifySearchIncludeExternalAudio
@@ -669,13 +662,11 @@ export function App() {
         spotifyConnected={spotifyConnected}
         loading={spotifySearchLoading}
         query={spotifySearchQuery}
-        market={spotifySearchMarket}
         limit={spotifySearchLimit}
         offset={spotifySearchOffset}
         includeExternalAudio={spotifySearchIncludeExternalAudio}
         onClose={closeSpotifySearchDialog}
         onQueryChange={setSpotifySearchQuery}
-        onMarketChange={setSpotifySearchMarket}
         onLimitChange={setSpotifySearchLimit}
         onOffsetChange={setSpotifySearchOffset}
         onIncludeExternalAudioChange={setSpotifySearchIncludeExternalAudio}

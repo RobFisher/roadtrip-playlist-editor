@@ -4,13 +4,11 @@ interface SpotifySearchDialogProps {
   spotifyConnected: boolean;
   loading: boolean;
   query: string;
-  market: string;
   limit: number;
   offset: number;
   includeExternalAudio: boolean;
   onClose: () => void;
   onQueryChange: (value: string) => void;
-  onMarketChange: (value: string) => void;
   onLimitChange: (value: number) => void;
   onOffsetChange: (value: number) => void;
   onIncludeExternalAudioChange: (value: boolean) => void;
@@ -23,13 +21,11 @@ export function SpotifySearchDialog({
   spotifyConnected,
   loading,
   query,
-  market,
   limit,
   offset,
   includeExternalAudio,
   onClose,
   onQueryChange,
-  onMarketChange,
   onLimitChange,
   onOffsetChange,
   onIncludeExternalAudioChange,
@@ -61,16 +57,10 @@ export function SpotifySearchDialog({
                 maxLength={300}
               />
             </label>
+            <p className="modal-support">
+              Uses your Spotify account&apos;s default market automatically.
+            </p>
             <div className="modal-inline-fields">
-              <label>
-                Market (optional)
-                <input
-                  value={market}
-                  onChange={(event) => onMarketChange(event.target.value)}
-                  placeholder="US"
-                  maxLength={2}
-                />
-              </label>
               <label>
                 Results per search
                 <input
