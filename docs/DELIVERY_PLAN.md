@@ -1,7 +1,7 @@
 # Delivery Plan (Testable Steps)
 
 This plan delivered AWS early, then focused on a useful no-backend editor.
-It now prioritizes search integration next, followed by backend/auth/collaboration later.
+Search integration is now complete; focus moves to backend/auth/collaboration next.
 
 ## Milestone 0: Repo + Environment Baseline
 
@@ -79,6 +79,8 @@ Exit criteria:
 - User can add search results to playlists with current editor flows.
 - Added songs remain exportable to Spotify from the existing export workflow.
 - Provider failures are visible but do not break editing workflow.
+
+Status: Complete.
 
 ## Milestone 4: Shared Projects + Identity (Backend Start)
 

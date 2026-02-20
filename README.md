@@ -7,8 +7,8 @@ reorder tracks within a playlist, and quickly shape alternatives before exportin
 ![Roadtrip Playlist Editor screenshot](screenshot.png)
 
 Current status:
-- Milestones 0-2 are complete.
-- The app is useful now as a personal local editor (save/load project JSON files, Spotify import/export).
+- Milestones 0-3 are complete.
+- The app is useful now as a personal local editor with Spotify discovery/import/export.
 - AWS deployment is currently optional because there is no backend or multi-user collaboration yet.
 
 ## Prerequisites
@@ -57,9 +57,10 @@ The local dev server listens on `http://127.0.0.1:5173` by default.
 
 - Open multiple playlist panes and switch which playlist each pane displays.
 - Drag songs between panes (copy or move) and reorder within a pane.
-- Create playlists and delete selected songs from a playlist.
+- Create playlists, remove songs from a list, delete lists, and close panes.
 - Save/load project state locally as JSON.
 - Connect Spotify, import playlists, and export pane content to a new Spotify playlist.
+- Search Spotify into any pane, keep search result lists in the project, and load more results.
 
 ## Spotify Setup (Local + Deployed)
 
