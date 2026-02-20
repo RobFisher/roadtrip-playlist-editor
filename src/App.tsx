@@ -10,6 +10,7 @@ import {
   serializeProjectState,
   type PaneMode
 } from "./projectPersistence.js";
+import { DeleteListDialog } from "./components/DeleteListDialog.js";
 import { NewPlaylistDialog } from "./components/NewPlaylistDialog.js";
 import { PlaylistPane } from "./components/PlaylistPane.js";
 import { SaveProjectDialog } from "./components/SaveProjectDialog.js";
@@ -88,6 +89,9 @@ export function App() {
   >(null);
   const [spotifyExportPlaylistName, setSpotifyExportPlaylistName] = useState("");
   const [spotifyExportLoading, setSpotifyExportLoading] = useState(false);
+  const [deleteListDialogPaneIndex, setDeleteListDialogPaneIndex] = useState<number | null>(
+    null
+  );
   const [spotifySearchDialogPaneIndex, setSpotifySearchDialogPaneIndex] = useState<
     number | null
   >(null);
@@ -274,6 +278,80 @@ export function App() {
 
   function closeSpotifySearchDialog(): void {
     setSpotifySearchDialogPaneIndex(null);
+  }
+
+  function openDeleteListDialog(paneIndex: number): void {
+    setDeleteListDialogPaneIndex(paneIndex);
+  }
+
+  function closeDeleteListDialog(): void {
+    setDeleteListDialogPaneIndex(null);
+  }
+
+  function confirmDeleteList(): void {
+    if (deleteListDialogPaneIndex === null) {
+      return;
+    }
+
+    const targetPaneIndex = deleteListDialogPaneIndex;
+    const targetPlaylistId = panePlaylistIds[targetPaneIndex];
+    const targetPlaylist = playlists.find((playlist) => playlist.id === targetPlaylistId);
+    if (!targetPlaylist) {
+      closeDeleteListDialog();
+      return;
+    }
+
+    const remainingPlaylists = playlists.filter(
+      (playlist) => playlist.id !== targetPlaylistId
+    );
+    const fallbackPlaylist =
+      remainingPlaylists[0] ??
+      ({
+        id: buildUniquePlaylistId(remainingPlaylists, "playlist-untitled"),
+        name: "Untitled Playlist",
+        songIds: []
+      } satisfies Playlist);
+    const nextPlaylists =
+      remainingPlaylists.length > 0
+        ? remainingPlaylists
+        : [...remainingPlaylists, fallbackPlaylist];
+
+    const nextPanePlaylistIds = panePlaylistIds.map((playlistId) =>
+      playlistId === targetPlaylistId ? fallbackPlaylist.id : playlistId
+    );
+    const nextPaneModes = paneModes.map((mode, paneIndex) =>
+      panePlaylistIds[paneIndex] === targetPlaylistId ? "playlist" : mode
+    );
+    const nextPaneSearchStates = paneSearchStates.map((state, paneIndex) =>
+      panePlaylistIds[paneIndex] === targetPlaylistId ? null : state
+    );
+
+    setPlaylists(nextPlaylists);
+    setPanePlaylistIds(nextPanePlaylistIds);
+    setPaneModes(nextPaneModes);
+    setPaneSearchStates(nextPaneSearchStates);
+
+    if (selectedSong?.playlistId === targetPlaylistId) {
+      setSelectedSong(null);
+    }
+    if (
+      spotifyExportDialogPaneIndex !== null &&
+      panePlaylistIds[spotifyExportDialogPaneIndex] === targetPlaylistId
+    ) {
+      setSpotifyExportDialogPaneIndex(null);
+    }
+    if (
+      spotifySearchLoadMorePaneIndex !== null &&
+      panePlaylistIds[spotifySearchLoadMorePaneIndex] === targetPlaylistId
+    ) {
+      setSpotifySearchLoadMorePaneIndex(null);
+    }
+
+    const listKindLabel = paneModes[targetPaneIndex] === "search" ? "search results" : "playlist";
+    setSpotifyStatusMessage(
+      `Deleted ${listKindLabel} "${targetPlaylist.name}" from this project.`
+    );
+    closeDeleteListDialog();
   }
 
   async function searchSpotifyForPane(): Promise<void> {
@@ -745,6 +823,7 @@ export function App() {
               searchSpotifyValue={SEARCH_SPOTIFY_VALUE}
               onUpdatePanePlaylist={updatePanePlaylist}
               onDeleteSelectedFromPlaylist={deleteSelectedFromPlaylist}
+              onDeleteList={openDeleteListDialog}
               onOpenSpotifyExport={openSpotifyExportDialog}
               onRemovePane={removePane}
               onPaneDrop={onPaneDrop}
@@ -818,6 +897,23 @@ export function App() {
         onClose={closeSpotifySearchDialog}
         onQueryChange={setSpotifySearchQuery}
         onSearch={searchSpotifyForPane}
+      />
+      <DeleteListDialog
+        isOpen={deleteListDialogPaneIndex !== null}
+        listName={
+          deleteListDialogPaneIndex !== null
+            ? playlists.find((playlist) => playlist.id === panePlaylistIds[deleteListDialogPaneIndex])
+                ?.name ?? "this list"
+            : "this list"
+        }
+        listKindLabel={
+          deleteListDialogPaneIndex !== null &&
+          paneModes[deleteListDialogPaneIndex] === "search"
+            ? "search results"
+            : "playlist"
+        }
+        onCancel={closeDeleteListDialog}
+        onConfirm={confirmDeleteList}
       />
     </main>
   );

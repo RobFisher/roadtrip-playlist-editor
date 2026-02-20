@@ -14,6 +14,7 @@ interface PlaylistPaneProps {
   searchSpotifyValue: string;
   onUpdatePanePlaylist: (paneIndex: number, playlistId: string) => void;
   onDeleteSelectedFromPlaylist: (playlistId: string) => void;
+  onDeleteList: (paneIndex: number) => void;
   onOpenSpotifyExport: (paneIndex: number) => void;
   onRemovePane: (paneIndex: number) => void;
   onPaneDrop: (
@@ -57,6 +58,7 @@ export function PlaylistPane({
   searchSpotifyValue,
   onUpdatePanePlaylist,
   onDeleteSelectedFromPlaylist,
+  onDeleteList,
   onOpenSpotifyExport,
   onRemovePane,
   onPaneDrop,
@@ -94,17 +96,25 @@ export function PlaylistPane({
           className="pane-delete"
           onClick={() => onDeleteSelectedFromPlaylist(playlist.id)}
           disabled={selectedSong?.playlistId !== playlist.id}
-          title="Delete selected song from this playlist"
+          title="Remove selected song from this list"
         >
-          Delete Selected
+          Remove song
         </button>
         <button
-          className="pane-remove"
+          className="pane-delete"
+          onClick={() => onDeleteList(paneIndex)}
+          title="Delete this list from the project"
+        >
+          Delete list
+        </button>
+        <button
+          className="pane-close"
           onClick={() => onRemovePane(paneIndex)}
           disabled={paneCount <= 1}
           title="Remove pane"
+          aria-label="Close pane"
         >
-          Remove
+          ×
         </button>
       </header>
 

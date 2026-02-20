@@ -129,8 +129,7 @@ body {
   font-weight: 600;
 }
 
-.pane-delete,
-.pane-remove {
+.pane-delete {
   border: 1px solid #c8d2e2;
   border-radius: 8px;
   padding: 8px 10px;
@@ -138,8 +137,23 @@ body {
   font-weight: 600;
 }
 
-.pane-delete:disabled,
-.pane-remove:disabled {
+.pane-delete:disabled {
+  opacity: 0.55;
+}
+
+.pane-close {
+  border: 1px solid #c8d2e2;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: #f7f9fc;
+  font-weight: 700;
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.pane-close:disabled {
   opacity: 0.55;
 }
 
@@ -375,6 +389,12 @@ h1 {
 .modal-create {
   border: none;
   background: #2f4f87;
+  color: #ffffff;
+}
+
+.modal-danger {
+  border: none;
+  background: #a63434;
   color: #ffffff;
 }
 
