@@ -1,4 +1,4 @@
-import { CfnOutput, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
+import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
 import {
   AttributeType,
   BillingMode,
@@ -15,6 +15,19 @@ import { Construct } from "constructs";
 
 export interface BackendStackProps extends StackProps {
   envName: string;
+}
+
+function parseCorsAllowedOrigins(rawValue: string | undefined): string[] {
+  const fromEnv = String(rawValue ?? "")
+    .split(",")
+    .map((value) => value.trim().replace(/\/+$/g, ""))
+    .filter((value) => value.length > 0);
+
+  if (fromEnv.length > 0) {
+    return fromEnv;
+  }
+
+  return ["http://127.0.0.1:5173"];
 }
 
 export class BackendStack extends Stack {
@@ -42,6 +55,8 @@ export class BackendStack extends Stack {
       runtime: Runtime.NODEJS_22_X,
       handler: "api-handler.handler",
       code: Code.fromAsset("backend"),
+      timeout: Duration.seconds(15),
+      memorySize: 256,
       environment: {
         APP_TABLE_NAME: appTable.tableName,
         ENV_NAME: props.envName,
@@ -55,7 +70,7 @@ export class BackendStack extends Stack {
 
     const api = new HttpApi(this, "HttpApi", {
       corsPreflight: {
-        allowOrigins: ["http://127.0.0.1:5173"],
+        allowOrigins: parseCorsAllowedOrigins(process.env.BACKEND_CORS_ALLOWED_ORIGINS),
         allowMethods: [
           CorsHttpMethod.GET,
           CorsHttpMethod.POST,

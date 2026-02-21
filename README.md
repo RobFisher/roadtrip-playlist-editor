@@ -153,6 +153,21 @@ For deployed frontend calling deployed API directly, set:
 VITE_API_BASE_URL=https://your-api-id.execute-api.<region>.amazonaws.com
 ```
 
+For deployed login/session calls to succeed, backend CORS must allow your frontend origin.
+Set this in `.env.local` before backend deploy:
+
+```bash
+BACKEND_CORS_ALLOWED_ORIGINS=http://127.0.0.1:5173,https://d231ej2mp8aqcu.cloudfront.net
+```
+
+Then redeploy backend:
+
+```bash
+AWS_PROFILE=roadtrip-deployer AWS_REGION=<REGION> npx cdk deploy RoadtripPlaylistEditorBackend-dev
+```
+
+Important: list origins without trailing slash.
+
 For CDK deploys, `bin/cdk.ts` also loads `.env.local` and `.env`, so `VITE_GOOGLE_CLIENT_ID`
 in those files is picked up by the backend Lambda config.
 

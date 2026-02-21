@@ -277,9 +277,13 @@ export function App() {
       setBackendSessionUser(null);
       setBackendStatus("Backend reachable. No active app session.");
       return null;
-    } catch {
+    } catch (error) {
       setBackendSessionUser(null);
-      setBackendStatus("Backend not reachable from this environment.");
+      setBackendStatus(
+        error instanceof Error
+          ? `Backend not reachable: ${error.message}`
+          : "Backend not reachable from this environment."
+      );
       return null;
     }
   }

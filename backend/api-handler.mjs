@@ -263,21 +263,31 @@ async function createDynamoStore() {
     throw new Error("APP_TABLE_NAME is required for DynamoDB store.");
   }
 
-  const awsModule = await import("aws-sdk");
-  const AWS = awsModule.default ?? awsModule;
-  const dynamodb = new AWS.DynamoDB.DocumentClient();
+  const [{ DynamoDBClient }, dynamodb] = await Promise.all([
+    import("@aws-sdk/client-dynamodb"),
+    import("@aws-sdk/lib-dynamodb")
+  ]);
+  const {
+    DynamoDBDocumentClient,
+    GetCommand,
+    PutCommand,
+    ScanCommand,
+    DeleteCommand,
+    UpdateCommand
+  } = dynamodb;
+  const dynamodbClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
   return {
     async listProjects() {
-      const response = await dynamodb
-        .scan({
+      const response = await dynamodbClient.send(
+        new ScanCommand({
           TableName: tableName,
           FilterExpression: "itemType = :itemType",
           ExpressionAttributeValues: {
             ":itemType": "project"
           }
         })
-        .promise();
+      );
       const items = (response.Items ?? []).map((item) => ({
         projectId: String(item.projectId),
         name: String(item.name),
@@ -289,15 +299,15 @@ async function createDynamoStore() {
     },
 
     async getProject(projectId) {
-      const response = await dynamodb
-        .get({
+      const response = await dynamodbClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: {
             pk: `${PROJECT_PK_PREFIX}${projectId}`,
             sk: PROJECT_SK_META
           }
         })
-        .promise();
+      );
       const item = response.Item;
       if (!item) {
         return null;
@@ -321,15 +331,15 @@ async function createDynamoStore() {
       if (!payload) {
         throw new Error("Project payload is required.");
       }
-      const existingName = await dynamodb
-        .get({
+      const existingName = await dynamodbClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: {
             pk: `${PROJECT_NAME_PK_PREFIX}${nameKey}`,
             sk: PROJECT_NAME_SK_LOCK
           }
         })
-        .promise();
+      );
       if (existingName.Item) {
         return { conflict: true };
       }
@@ -349,16 +359,16 @@ async function createDynamoStore() {
         updatedAt: now
       };
 
-      await dynamodb
-        .put({
+      await dynamodbClient.send(
+        new PutCommand({
           TableName: tableName,
           Item: projectItem,
           ConditionExpression: "attribute_not_exists(pk)"
         })
-        .promise();
+      );
       try {
-        await dynamodb
-          .put({
+        await dynamodbClient.send(
+          new PutCommand({
             TableName: tableName,
             Item: {
               pk: `${PROJECT_NAME_PK_PREFIX}${nameKey}`,
@@ -368,18 +378,18 @@ async function createDynamoStore() {
             },
             ConditionExpression: "attribute_not_exists(pk)"
           })
-          .promise();
+        );
       } catch (error) {
-        await dynamodb
-          .delete({
+        await dynamodbClient.send(
+          new DeleteCommand({
             TableName: tableName,
             Key: {
               pk: projectItem.pk,
               sk: projectItem.sk
             }
           })
-          .promise();
-        if (error && error.code === "ConditionalCheckFailedException") {
+        );
+        if (error && typeof error === "object" && "name" in error && error.name === "ConditionalCheckFailedException") {
           return { conflict: true };
         }
         throw error;
@@ -415,23 +425,23 @@ async function createDynamoStore() {
         throw new Error("Project payload is required.");
       }
       if (nextNameKey !== currentNameKey) {
-        const existingName = await dynamodb
-          .get({
+        const existingName = await dynamodbClient.send(
+          new GetCommand({
             TableName: tableName,
             Key: {
               pk: `${PROJECT_NAME_PK_PREFIX}${nextNameKey}`,
               sk: PROJECT_NAME_SK_LOCK
             }
           })
-          .promise();
+        );
         if (existingName.Item) {
           return { conflict: true };
         }
       }
       const now = new Date().toISOString();
       const nextVersion = current.version + 1;
-      await dynamodb
-        .update({
+      await dynamodbClient.send(
+        new UpdateCommand({
           TableName: tableName,
           Key: {
             pk: `${PROJECT_PK_PREFIX}${projectId}`,
@@ -452,10 +462,10 @@ async function createDynamoStore() {
             ":updatedAt": now
           }
         })
-        .promise();
+      );
       if (nextNameKey !== currentNameKey) {
-        await dynamodb
-          .put({
+        await dynamodbClient.send(
+          new PutCommand({
             TableName: tableName,
             Item: {
               pk: `${PROJECT_NAME_PK_PREFIX}${nextNameKey}`,
@@ -465,16 +475,16 @@ async function createDynamoStore() {
             },
             ConditionExpression: "attribute_not_exists(pk)"
           })
-          .promise();
-        await dynamodb
-          .delete({
+        );
+        await dynamodbClient.send(
+          new DeleteCommand({
             TableName: tableName,
             Key: {
               pk: `${PROJECT_NAME_PK_PREFIX}${currentNameKey}`,
               sk: PROJECT_NAME_SK_LOCK
             }
           })
-          .promise();
+        );
       }
       return {
         project: {
@@ -490,15 +500,15 @@ async function createDynamoStore() {
 
     async upsertUser(googleIdentity, preferredDisplayName) {
       const now = new Date().toISOString();
-      const existing = await dynamodb
-        .get({
+      const existing = await dynamodbClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: {
             pk: `${USER_PK_PREFIX}${googleIdentity.sub}`,
             sk: USER_SK_PROFILE
           }
         })
-        .promise();
+      );
       const displayName =
         normalizeDisplayName(preferredDisplayName) ||
         normalizeDisplayName(googleIdentity.name) ||
@@ -510,8 +520,8 @@ async function createDynamoStore() {
         createdAt: existing.Item?.createdAt ?? now,
         updatedAt: now
       };
-      await dynamodb
-        .put({
+      await dynamodbClient.send(
+        new PutCommand({
           TableName: tableName,
           Item: {
             pk: `${USER_PK_PREFIX}${googleIdentity.sub}`,
@@ -520,7 +530,7 @@ async function createDynamoStore() {
             ...user
           }
         })
-        .promise();
+      );
       return user;
     },
 
@@ -528,8 +538,8 @@ async function createDynamoStore() {
       const sessionId = crypto.randomBytes(24).toString("base64url");
       const expiresAtEpochSeconds = Math.floor(Date.now() / 1000) + ttlSeconds;
       const expiresAt = new Date(expiresAtEpochSeconds * 1000).toISOString();
-      await dynamodb
-        .put({
+      await dynamodbClient.send(
+        new PutCommand({
           TableName: tableName,
           Item: {
             pk: `${SESSION_PK_PREFIX}${sessionId}`,
@@ -543,7 +553,7 @@ async function createDynamoStore() {
             ttlEpochSeconds: expiresAtEpochSeconds
           }
         })
-        .promise();
+      );
       return {
         sessionId,
         user: {
@@ -556,15 +566,15 @@ async function createDynamoStore() {
     },
 
     async getSession(sessionId) {
-      const response = await dynamodb
-        .get({
+      const response = await dynamodbClient.send(
+        new GetCommand({
           TableName: tableName,
           Key: {
             pk: `${SESSION_PK_PREFIX}${sessionId}`,
             sk: SESSION_SK_META
           }
         })
-        .promise();
+      );
       const item = response.Item;
       if (!item) {
         return null;
@@ -583,15 +593,15 @@ async function createDynamoStore() {
     },
 
     async deleteSession(sessionId) {
-      await dynamodb
-        .delete({
+      await dynamodbClient.send(
+        new DeleteCommand({
           TableName: tableName,
           Key: {
             pk: `${SESSION_PK_PREFIX}${sessionId}`,
             sk: SESSION_SK_META
           }
         })
-        .promise();
+      );
     }
   };
 }
@@ -692,149 +702,159 @@ function requireActor(actor) {
 }
 
 export async function handler(event) {
-  const method = event?.requestContext?.http?.method ?? "GET";
-  const { path, projectId } = readPath(event);
-  const store = await getStore();
-  const actor = await getSessionActor(event, store);
+  try {
+    const method = event?.requestContext?.http?.method ?? "GET";
+    const { path, projectId } = readPath(event);
 
-  if (method === "GET" && path === "/api/health") {
-    return json(200, {
-      ok: true,
-      env: process.env.ENV_NAME ?? "unknown",
-      timestamp: new Date().toISOString()
-    });
-  }
+    if (method === "GET" && path === "/api/health") {
+      return json(200, {
+        ok: true,
+        env: process.env.ENV_NAME ?? "unknown",
+        timestamp: new Date().toISOString()
+      });
+    }
 
-  if (method === "POST" && path === "/api/auth/google/session") {
-    try {
-      const body = await parseJsonBody(event?.body ?? "");
-      const accessToken = String(body?.accessToken ?? "").trim();
-      const preferredDisplayName = normalizeDisplayName(body?.displayName ?? "");
-      if (!accessToken) {
-        return json(400, { message: "Google access token is required." });
-      }
-      const googleIdentity = await verifyGoogleAccessToken(accessToken);
-      const user = await store.upsertUser(googleIdentity, preferredDisplayName);
-      const sessionTtlSeconds = Number.parseInt(
-        String(process.env.SESSION_TTL_SECONDS ?? "604800"),
-        10
-      );
-      const session = await store.createSession(user, Math.max(300, sessionTtlSeconds));
-      return json(
-        200,
-        {
-          authenticated: true,
-          user: {
-            userId: session.user.userId,
-            email: session.user.email,
-            displayName: session.user.displayName
-          }
-        },
-        {
-          "set-cookie": buildSetCookie(session.sessionId, Math.max(300, sessionTtlSeconds))
+    const store = await getStore();
+    const actor = await getSessionActor(event, store);
+
+    if (method === "POST" && path === "/api/auth/google/session") {
+      try {
+        const body = await parseJsonBody(event?.body ?? "");
+        const accessToken = String(body?.accessToken ?? "").trim();
+        const preferredDisplayName = normalizeDisplayName(body?.displayName ?? "");
+        if (!accessToken) {
+          return json(400, { message: "Google access token is required." });
         }
-      );
-    } catch (error) {
-      return json(401, {
-        message: error instanceof Error ? error.message : "Failed to authenticate with Google."
-      });
-    }
-  }
-
-  if (method === "POST" && path === "/api/auth/logout") {
-    if (actor?.sessionId) {
-      await store.deleteSession(actor.sessionId);
-    }
-    return json(
-      200,
-      { ok: true },
-      {
-        "set-cookie": clearCookieHeader()
-      }
-    );
-  }
-
-  if (method === "GET" && path === "/api/me") {
-    if (!actor) {
-      return json(200, { authenticated: false, user: null });
-    }
-    return json(200, {
-      authenticated: true,
-      user: {
-        userId: actor.userId,
-        email: actor.email,
-        displayName: actor.displayName
-      }
-    });
-  }
-
-  if (method === "GET" && path === "/api/projects") {
-    const unauthorized = requireActor(actor);
-    if (unauthorized) {
-      return unauthorized;
-    }
-    const projects = await store.listProjects();
-    return json(200, { projects });
-  }
-
-  if (method === "POST" && path === "/api/projects") {
-    const unauthorized = requireActor(actor);
-    if (unauthorized) {
-      return unauthorized;
-    }
-    try {
-      const body = await parseJsonBody(event?.body ?? "");
-      const created = await store.createProject(actor, body?.name, body?.payload);
-      if (created.conflict) {
-        return json(409, { message: "Project name is already in use." });
-      }
-      return json(201, { project: created.project });
-    } catch (error) {
-      return json(400, {
-        message: error instanceof Error ? error.message : "Invalid request."
-      });
-    }
-  }
-
-  if (projectId && method === "GET") {
-    const unauthorized = requireActor(actor);
-    if (unauthorized) {
-      return unauthorized;
-    }
-    const project = await store.getProject(projectId);
-    if (!project) {
-      return json(404, { message: "Project not found." });
-    }
-    return json(200, { project });
-  }
-
-  if (projectId && method === "PUT") {
-    const unauthorized = requireActor(actor);
-    if (unauthorized) {
-      return unauthorized;
-    }
-    try {
-      const body = await parseJsonBody(event?.body ?? "");
-      const updated = await store.updateProject(actor, projectId, body?.name, body?.payload);
-      if (updated.notFound) {
-        return json(404, { message: "Project not found." });
-      }
-      if (updated.forbidden) {
-        return json(403, {
-          message:
-            "Only the project owner can save changes. Save with a new unique name to create your own copy."
+        const googleIdentity = await verifyGoogleAccessToken(accessToken);
+        const user = await store.upsertUser(googleIdentity, preferredDisplayName);
+        const sessionTtlSeconds = Number.parseInt(
+          String(process.env.SESSION_TTL_SECONDS ?? "604800"),
+          10
+        );
+        const session = await store.createSession(user, Math.max(300, sessionTtlSeconds));
+        return json(
+          200,
+          {
+            authenticated: true,
+            user: {
+              userId: session.user.userId,
+              email: session.user.email,
+              displayName: session.user.displayName
+            }
+          },
+          {
+            "set-cookie": buildSetCookie(session.sessionId, Math.max(300, sessionTtlSeconds))
+          }
+        );
+      } catch (error) {
+        return json(401, {
+          message: error instanceof Error ? error.message : "Failed to authenticate with Google."
         });
       }
-      if (updated.conflict) {
-        return json(409, { message: "Project name is already in use." });
+    }
+
+    if (method === "POST" && path === "/api/auth/logout") {
+      if (actor?.sessionId) {
+        await store.deleteSession(actor.sessionId);
       }
-      return json(200, { project: updated.project });
-    } catch (error) {
-      return json(400, {
-        message: error instanceof Error ? error.message : "Invalid request."
+      return json(
+        200,
+        { ok: true },
+        {
+          "set-cookie": clearCookieHeader()
+        }
+      );
+    }
+
+    if (method === "GET" && path === "/api/me") {
+      if (!actor) {
+        return json(200, { authenticated: false, user: null });
+      }
+      return json(200, {
+        authenticated: true,
+        user: {
+          userId: actor.userId,
+          email: actor.email,
+          displayName: actor.displayName
+        }
       });
     }
-  }
 
-  return json(404, { message: `No route for ${method} ${path}` });
+    if (method === "GET" && path === "/api/projects") {
+      const unauthorized = requireActor(actor);
+      if (unauthorized) {
+        return unauthorized;
+      }
+      const projects = await store.listProjects();
+      return json(200, { projects });
+    }
+
+    if (method === "POST" && path === "/api/projects") {
+      const unauthorized = requireActor(actor);
+      if (unauthorized) {
+        return unauthorized;
+      }
+      try {
+        const body = await parseJsonBody(event?.body ?? "");
+        const created = await store.createProject(actor, body?.name, body?.payload);
+        if (created.conflict) {
+          return json(409, { message: "Project name is already in use." });
+        }
+        return json(201, { project: created.project });
+      } catch (error) {
+        return json(400, {
+          message: error instanceof Error ? error.message : "Invalid request."
+        });
+      }
+    }
+
+    if (projectId && method === "GET") {
+      const unauthorized = requireActor(actor);
+      if (unauthorized) {
+        return unauthorized;
+      }
+      const project = await store.getProject(projectId);
+      if (!project) {
+        return json(404, { message: "Project not found." });
+      }
+      return json(200, { project });
+    }
+
+    if (projectId && method === "PUT") {
+      const unauthorized = requireActor(actor);
+      if (unauthorized) {
+        return unauthorized;
+      }
+      try {
+        const body = await parseJsonBody(event?.body ?? "");
+        const updated = await store.updateProject(actor, projectId, body?.name, body?.payload);
+        if (updated.notFound) {
+          return json(404, { message: "Project not found." });
+        }
+        if (updated.forbidden) {
+          return json(403, {
+            message:
+              "Only the project owner can save changes. Save with a new unique name to create your own copy."
+          });
+        }
+        if (updated.conflict) {
+          return json(409, { message: "Project name is already in use." });
+        }
+        return json(200, { project: updated.project });
+      } catch (error) {
+        return json(400, {
+          message: error instanceof Error ? error.message : "Invalid request."
+        });
+      }
+    }
+
+    return json(404, { message: `No route for ${method} ${path}` });
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown server error.";
+    const includeDetail = process.env.ENV_NAME === "dev";
+    return json(500, {
+      message: "Internal Server Error",
+      ...(includeDetail ? { detail } : {})
+    });
+  }
 }
