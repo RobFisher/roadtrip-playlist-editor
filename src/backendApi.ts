@@ -18,6 +18,23 @@ export interface BackendMeResponse {
   user: BackendSessionUser | null;
 }
 
+export interface BackendSessionDebugResponse {
+  env: string;
+  request: {
+    origin: string;
+    host: string;
+  };
+  cookie: {
+    headerPresent: boolean;
+    hasSessionCookie: boolean;
+    sessionIdPrefix: string | null;
+  };
+  session: {
+    authenticated: boolean;
+    user: BackendSessionUser | null;
+  };
+}
+
 function normalizeApiBaseUrl(rawValue: string | undefined): string {
   const trimmed = rawValue?.trim() ?? "";
   if (!trimmed) {
@@ -88,6 +105,13 @@ export async function getBackendMe(): Promise<BackendMeResponse> {
     credentials: "include"
   });
   return await parseResponse<BackendMeResponse>(response);
+}
+
+export async function getBackendSessionDebug(): Promise<BackendSessionDebugResponse> {
+  const response = await fetch(buildApiPath("/api/debug/session"), {
+    credentials: "include"
+  });
+  return await parseResponse<BackendSessionDebugResponse>(response);
 }
 
 export async function listBackendProjects(): Promise<BackendProject[]> {

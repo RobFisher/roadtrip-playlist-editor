@@ -90,6 +90,38 @@ body {
   gap: 6px;
 }
 
+.auth-debug-panel {
+  background: #ffffff;
+  border: 1px solid #c8d2e2;
+  border-radius: 12px;
+  padding: 12px;
+  color: #233a58;
+}
+
+.auth-debug-panel h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.auth-debug-panel p {
+  margin: 0 0 8px;
+  font-size: 0.86rem;
+  overflow-wrap: anywhere;
+}
+
+.auth-debug-panel code {
+  background: #f2f5fb;
+  border-radius: 6px;
+  padding: 1px 5px;
+}
+
+.auth-debug-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
 .drag-mode-indicator {
   font-size: 0.85rem;
   color: #304765;

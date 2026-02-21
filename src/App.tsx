@@ -27,7 +27,9 @@ import { useSpotifyImport } from "./hooks/useSpotifyImport.js";
 import {
   createBackendGoogleSession,
   createBackendProject,
+  getApiBaseUrl,
   getBackendMe,
+  getBackendSessionDebug,
   getBackendProject,
   listBackendProjects,
   logoutBackendSession,
@@ -59,6 +61,13 @@ interface LoadedBackendProjectContext {
   projectId: string;
   ownerUserId: string;
   version: number;
+}
+
+interface AuthDebugState {
+  meCheckedAt: string | null;
+  meResult: string;
+  sessionCheckedAt: string | null;
+  sessionResult: string;
 }
 
 function normalizePlaylistName(value: string): string {
@@ -218,6 +227,12 @@ export function App() {
   const [backendSessionUser, setBackendSessionUser] = useState<BackendSessionUser | null>(null);
   const [loadedBackendProject, setLoadedBackendProject] =
     useState<LoadedBackendProjectContext | null>(null);
+  const [authDebug, setAuthDebug] = useState<AuthDebugState>({
+    meCheckedAt: null,
+    meResult: "Not checked yet.",
+    sessionCheckedAt: null,
+    sessionResult: "Not checked yet."
+  });
 
   const googleConnected = Boolean(backendSessionUser);
   const googleDisplayName = googleUser ? googleDisplayNameByUserId[googleUser.sub] ?? null : null;
@@ -235,6 +250,19 @@ export function App() {
     spotifyExportLoading ||
     spotifySearchLoading ||
     spotifySearchLoadMorePaneIndex !== null;
+  const apiBaseUrl = getApiBaseUrl();
+  const apiTarget = apiBaseUrl || "(same-origin)";
+  const apiOrigin = useMemo(() => {
+    if (!apiBaseUrl) {
+      return window.location.origin;
+    }
+    try {
+      return new URL(apiBaseUrl).origin;
+    } catch {
+      return "Invalid VITE_API_BASE_URL";
+    }
+  }, [apiBaseUrl]);
+  const apiIsSameOrigin = apiOrigin === window.location.origin;
 
   useEffect(() => {
     localStorage.setItem(
@@ -269,6 +297,11 @@ export function App() {
   async function refreshBackendSessionStatus(): Promise<BackendSessionUser | null> {
     try {
       const me = await getBackendMe();
+      setAuthDebug((prev) => ({
+        ...prev,
+        meCheckedAt: new Date().toISOString(),
+        meResult: JSON.stringify(me)
+      }));
       if (me.authenticated && me.user) {
         setBackendSessionUser(me.user);
         setBackendStatus(`Backend session active for ${me.user.displayName}.`);
@@ -278,6 +311,11 @@ export function App() {
       setBackendStatus("Backend reachable. No active app session.");
       return null;
     } catch (error) {
+      setAuthDebug((prev) => ({
+        ...prev,
+        meCheckedAt: new Date().toISOString(),
+        meResult: error instanceof Error ? error.message : "Unknown /api/me error"
+      }));
       setBackendSessionUser(null);
       setBackendStatus(
         error instanceof Error
@@ -288,10 +326,29 @@ export function App() {
     }
   }
 
+  async function runSessionDebugProbe(): Promise<void> {
+    try {
+      const session = await getBackendSessionDebug();
+      setAuthDebug((prev) => ({
+        ...prev,
+        sessionCheckedAt: new Date().toISOString(),
+        sessionResult: JSON.stringify(session)
+      }));
+    } catch (error) {
+      setAuthDebug((prev) => ({
+        ...prev,
+        sessionCheckedAt: new Date().toISOString(),
+        sessionResult:
+          error instanceof Error ? error.message : "Unknown /api/debug/session error"
+      }));
+    }
+  }
+
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
       const user = await refreshBackendSessionStatus();
+      await runSessionDebugProbe();
       if (!cancelled && !user) {
         setLoadedBackendProject(null);
       }
@@ -785,12 +842,18 @@ export function App() {
       (normalizeDisplayName(fallbackName) || fallbackEmail);
     try {
       const me = await createBackendGoogleSession(accessToken, preferredDisplayName);
+      setAuthDebug((prev) => ({
+        ...prev,
+        meCheckedAt: new Date().toISOString(),
+        meResult: `create session response: ${JSON.stringify(me)}`
+      }));
       if (me.authenticated && me.user) {
         setBackendSessionUser(me.user);
         setBackendStatus(`Backend session active for ${me.user.displayName}.`);
       } else {
         await refreshBackendSessionStatus();
       }
+      await runSessionDebugProbe();
     } catch (error) {
       setBackendStatus(
         error instanceof Error
@@ -990,6 +1053,7 @@ export function App() {
     );
 
     try {
+      await runSessionDebugProbe();
       let savedProject: BackendProject;
       if (loadedBackendProject && loadedProjectOwnedByCurrentUser) {
         savedProject = await updateBackendProject(
@@ -1017,6 +1081,7 @@ export function App() {
       setProjectName(savedProject.name);
       setSaveProjectDialogOpen(false);
     } catch (error) {
+      await runSessionDebugProbe();
       setProjectStatus(
         error instanceof Error ? error.message : "Failed to save project to backend."
       );
@@ -1168,6 +1233,38 @@ export function App() {
         style={{ display: "none" }}
         onChange={(event) => void loadProjectFromFile(event)}
       />
+      <section className="auth-debug-panel">
+        <h2>Auth Debug</h2>
+        <p>
+          Frontend origin: <code>{window.location.origin}</code>
+        </p>
+        <p>
+          API target: <code>{apiTarget}</code>
+        </p>
+        <p>
+          API origin: <code>{apiOrigin}</code> ({apiIsSameOrigin ? "same-origin" : "cross-origin"})
+        </p>
+        <p>
+          Google token in memory: <code>{googleToken ? "present" : "missing"}</code>
+        </p>
+        <p>
+          Google user in memory: <code>{googleUser?.email ?? "none"}</code>
+        </p>
+        <p>
+          Backend session user in memory: <code>{backendSessionUser?.email ?? "none"}</code>
+        </p>
+        <div className="auth-debug-actions">
+          <button onClick={() => void refreshBackendSessionStatus()}>Probe /api/me</button>
+          <button onClick={() => void runSessionDebugProbe()}>Probe /api/debug/session</button>
+        </div>
+        <p>
+          Last /api/me check ({authDebug.meCheckedAt ?? "never"}): <code>{authDebug.meResult}</code>
+        </p>
+        <p>
+          Last /api/debug/session check ({authDebug.sessionCheckedAt ?? "never"}):{" "}
+          <code>{authDebug.sessionResult}</code>
+        </p>
+      </section>
 
       <section className="pane-grid">
         {panePlaylistIds.map((panePlaylistId, paneIndex) => {

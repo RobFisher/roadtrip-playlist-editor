@@ -720,6 +720,18 @@ async function getSessionActor(event, store) {
   };
 }
 
+function readSessionCookieDebug(event) {
+  const headers = event?.headers ?? {};
+  const cookieHeader = String(headers.cookie ?? headers.Cookie ?? "");
+  const cookies = parseCookies(cookieHeader);
+  const sessionId = String(cookies[SESSION_COOKIE_NAME] ?? "").trim();
+  return {
+    headerPresent: cookieHeader.length > 0,
+    hasSessionCookie: sessionId.length > 0,
+    sessionIdPrefix: sessionId ? `${sessionId.slice(0, 8)}...` : null
+  };
+}
+
 function requireActor(actor) {
   if (!actor) {
     return json(401, { message: "Authentication required." });
@@ -802,6 +814,31 @@ export async function handler(event) {
           userId: actor.userId,
           email: actor.email,
           displayName: actor.displayName
+        }
+      });
+    }
+
+    if (method === "GET" && path === "/api/debug/session") {
+      if ((process.env.ENV_NAME ?? "").toLowerCase() !== "dev") {
+        return json(404, { message: "Not found." });
+      }
+      const cookie = readSessionCookieDebug(event);
+      return json(200, {
+        env: process.env.ENV_NAME ?? "unknown",
+        request: {
+          origin: String(event?.headers?.origin ?? ""),
+          host: String(event?.headers?.host ?? "")
+        },
+        cookie,
+        session: {
+          authenticated: Boolean(actor),
+          user: actor
+            ? {
+                userId: actor.userId,
+                email: actor.email,
+                displayName: actor.displayName
+              }
+            : null
         }
       });
     }
