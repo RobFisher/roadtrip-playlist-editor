@@ -152,6 +152,10 @@ Session cookie behavior:
 - Local (`http://127.0.0.1`) uses `SameSite=Lax` with non-secure cookie for dev convenience.
 - Deployed backend uses `SameSite=None; Secure` so CloudFront frontend can send session cookie to API Gateway across origins.
 
+Auth debug panel:
+- Hidden by default.
+- Toggle with `Ctrl+Shift+D` when you need session/cookie diagnostics in the UI.
+
 If you want direct frontend -> API Gateway calls, set:
 
 ```bash

@@ -230,6 +230,7 @@ export function App() {
   const [backendSessionUser, setBackendSessionUser] = useState<BackendSessionUser | null>(null);
   const [loadedBackendProject, setLoadedBackendProject] =
     useState<LoadedBackendProjectContext | null>(null);
+  const [showAuthDebugPanel, setShowAuthDebugPanel] = useState(false);
   const [authDebug, setAuthDebug] = useState<AuthDebugState>({
     meCheckedAt: null,
     meResult: "Not checked yet.",
@@ -298,6 +299,19 @@ export function App() {
       setLoadedBackendProject(null);
     }
   }, [backendSessionUser]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "d") {
+        event.preventDefault();
+        setShowAuthDebugPanel((current) => !current);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, []);
 
   async function refreshBackendSessionStatus(): Promise<BackendSessionUser | null> {
     try {
@@ -373,7 +387,9 @@ export function App() {
     let cancelled = false;
     const run = async () => {
       const user = await refreshBackendSessionStatus();
-      await runSessionDebugProbe();
+      if (showAuthDebugPanel) {
+        await runSessionDebugProbe();
+      }
       if (!cancelled && !user) {
         setLoadedBackendProject(null);
       }
@@ -382,7 +398,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [showAuthDebugPanel]);
 
   const spotifyExportSourcePlaylist = useMemo(() => {
     if (spotifyExportDialogPaneIndex === null) {
@@ -878,7 +894,9 @@ export function App() {
       } else {
         await refreshBackendSessionStatus();
       }
-      await runSessionDebugProbe();
+      if (showAuthDebugPanel) {
+        await runSessionDebugProbe();
+      }
     } catch (error) {
       setBackendStatus(
         error instanceof Error
@@ -1078,7 +1096,9 @@ export function App() {
     );
 
     try {
-      await runSessionDebugProbe();
+      if (showAuthDebugPanel) {
+        await runSessionDebugProbe();
+      }
       let savedProject: BackendProject;
       if (loadedBackendProject && loadedProjectOwnedByCurrentUser) {
         savedProject = await updateBackendProject(
@@ -1106,7 +1126,9 @@ export function App() {
       setProjectName(savedProject.name);
       setSaveProjectDialogOpen(false);
     } catch (error) {
-      await runSessionDebugProbe();
+      if (showAuthDebugPanel) {
+        await runSessionDebugProbe();
+      }
       setProjectStatus(
         error instanceof Error ? error.message : "Failed to save project to backend."
       );
@@ -1258,45 +1280,49 @@ export function App() {
         style={{ display: "none" }}
         onChange={(event) => void loadProjectFromFile(event)}
       />
-      <section className="auth-debug-panel">
-        <h2>Auth Debug</h2>
-        <p>
-          Frontend origin: <code>{window.location.origin}</code>
-        </p>
-        <p>
-          API target: <code>{apiTarget}</code>
-        </p>
-        <p>
-          API origin: <code>{apiOrigin}</code> ({apiIsSameOrigin ? "same-origin" : "cross-origin"})
-        </p>
-        <p>
-          Google token in memory: <code>{googleToken ? "present" : "missing"}</code>
-        </p>
-        <p>
-          Google user in memory: <code>{googleUser?.email ?? "none"}</code>
-        </p>
-        <p>
-          Backend session user in memory: <code>{backendSessionUser?.email ?? "none"}</code>
-        </p>
-        <div className="auth-debug-actions">
-          <button onClick={() => void refreshBackendSessionStatus()}>Probe /api/me</button>
-          <button onClick={() => void runSessionDebugProbe()}>Probe /api/debug/session</button>
-          <button onClick={() => void runCookieWriteDebugProbe()}>
-            Probe /api/debug/set-cookie
-          </button>
-        </div>
-        <p>
-          Last /api/debug/set-cookie check ({authDebug.cookieWriteCheckedAt ?? "never"}):{" "}
-          <code>{authDebug.cookieWriteResult}</code>
-        </p>
-        <p>
-          Last /api/me check ({authDebug.meCheckedAt ?? "never"}): <code>{authDebug.meResult}</code>
-        </p>
-        <p>
-          Last /api/debug/session check ({authDebug.sessionCheckedAt ?? "never"}):{" "}
-          <code>{authDebug.sessionResult}</code>
-        </p>
-      </section>
+      {showAuthDebugPanel && (
+        <section className="auth-debug-panel">
+          <h2>Auth Debug</h2>
+          <p>
+            Frontend origin: <code>{window.location.origin}</code>
+          </p>
+          <p>
+            API target: <code>{apiTarget}</code>
+          </p>
+          <p>
+            API origin: <code>{apiOrigin}</code> (
+            {apiIsSameOrigin ? "same-origin" : "cross-origin"})
+          </p>
+          <p>
+            Google token in memory: <code>{googleToken ? "present" : "missing"}</code>
+          </p>
+          <p>
+            Google user in memory: <code>{googleUser?.email ?? "none"}</code>
+          </p>
+          <p>
+            Backend session user in memory: <code>{backendSessionUser?.email ?? "none"}</code>
+          </p>
+          <div className="auth-debug-actions">
+            <button onClick={() => void refreshBackendSessionStatus()}>Probe /api/me</button>
+            <button onClick={() => void runSessionDebugProbe()}>Probe /api/debug/session</button>
+            <button onClick={() => void runCookieWriteDebugProbe()}>
+              Probe /api/debug/set-cookie
+            </button>
+          </div>
+          <p>
+            Last /api/debug/set-cookie check ({authDebug.cookieWriteCheckedAt ?? "never"}):{" "}
+            <code>{authDebug.cookieWriteResult}</code>
+          </p>
+          <p>
+            Last /api/me check ({authDebug.meCheckedAt ?? "never"}):{" "}
+            <code>{authDebug.meResult}</code>
+          </p>
+          <p>
+            Last /api/debug/session check ({authDebug.sessionCheckedAt ?? "never"}):{" "}
+            <code>{authDebug.sessionResult}</code>
+          </p>
+        </section>
+      )}
 
       <section className="pane-grid">
         {panePlaylistIds.map((panePlaylistId, paneIndex) => {
