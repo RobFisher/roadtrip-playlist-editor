@@ -43,9 +43,16 @@ function buildApiPath(path: string): string {
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get("content-type") ?? "";
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Backend request failed (${response.status}): ${text}`);
+  }
+  if (!contentType.toLowerCase().includes("application/json")) {
+    const text = await response.text();
+    throw new Error(
+      `Backend returned non-JSON response (${response.status}, content-type: ${contentType || "unknown"}): ${text.slice(0, 180)}`
+    );
   }
   return (await response.json()) as T;
 }

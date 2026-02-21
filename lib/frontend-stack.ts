@@ -1,12 +1,23 @@
-import { CfnOutput, Duration, RemovalPolicy, Stack, StackProps } from "aws-cdk-lib";
+import { CfnOutput, RemovalPolicy, Stack, StackProps } from "aws-cdk-lib";
 import { BlockPublicAccess, Bucket, BucketEncryption } from "aws-cdk-lib/aws-s3";
-import { Distribution, ViewerProtocolPolicy } from "aws-cdk-lib/aws-cloudfront";
-import { S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
+import {
+  AllowedMethods,
+  CachePolicy,
+  Distribution,
+  Function as CloudFrontFunction,
+  FunctionCode,
+  FunctionEventType,
+  OriginProtocolPolicy,
+  OriginRequestPolicy,
+  ViewerProtocolPolicy
+} from "aws-cdk-lib/aws-cloudfront";
+import { HttpOrigin, S3BucketOrigin } from "aws-cdk-lib/aws-cloudfront-origins";
 import { BucketDeployment, Source } from "aws-cdk-lib/aws-s3-deployment";
 import { Construct } from "constructs";
 
 export interface FrontendStackProps extends StackProps {
   envName: string;
+  apiOriginDomainName?: string;
 }
 
 export class FrontendStack extends Stack {
@@ -22,26 +33,52 @@ export class FrontendStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY
     });
 
+    const spaRewriteFunction = new CloudFrontFunction(this, "SpaRewriteFunction", {
+      code: FunctionCode.fromInline(`
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri || "/";
+  if (uri.startsWith("/api/")) {
+    return request;
+  }
+  if (uri === "/" || uri === "") {
+    request.uri = "/index.html";
+    return request;
+  }
+  if (uri.lastIndexOf(".") === -1) {
+    request.uri = "/index.html";
+  }
+  return request;
+}
+`)
+    });
+
     const distribution = new Distribution(this, "SiteDistribution", {
       defaultRootObject: "index.html",
       defaultBehavior: {
         origin: S3BucketOrigin.withOriginAccessControl(siteBucket),
-        viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS
+        viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        functionAssociations: [
+          {
+            function: spaRewriteFunction,
+            eventType: FunctionEventType.VIEWER_REQUEST
+          }
+        ]
       },
-      errorResponses: [
-        {
-          httpStatus: 403,
-          responseHttpStatus: 200,
-          responsePagePath: "/index.html",
-          ttl: Duration.minutes(1)
-        },
-        {
-          httpStatus: 404,
-          responseHttpStatus: 200,
-          responsePagePath: "/index.html",
-          ttl: Duration.minutes(1)
-        }
-      ]
+      additionalBehaviors: props.apiOriginDomainName
+        ? {
+            "/api/*": {
+              origin: new HttpOrigin(props.apiOriginDomainName, {
+                protocolPolicy: OriginProtocolPolicy.HTTPS_ONLY
+              }),
+              viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+              allowedMethods: AllowedMethods.ALLOW_ALL,
+              cachePolicy: CachePolicy.CACHING_DISABLED,
+              originRequestPolicy: OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER
+            }
+          }
+        : undefined,
+      errorResponses: []
     });
 
     new BucketDeployment(this, "DeployFrontend", {

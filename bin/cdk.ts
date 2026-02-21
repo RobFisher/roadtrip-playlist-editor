@@ -40,12 +40,13 @@ const account = process.env.CDK_DEFAULT_ACCOUNT ?? process.env.AWS_ACCOUNT_ID;
 const region = process.env.CDK_DEFAULT_REGION ?? process.env.AWS_REGION;
 const env = account && region ? { account, region } : undefined;
 
-new BackendStack(app, "RoadtripPlaylistEditorBackend-dev", {
+const backendStack = new BackendStack(app, "RoadtripPlaylistEditorBackend-dev", {
   envName: "dev",
   ...(env ? { env } : {})
 });
 
 new FrontendStack(app, "RoadtripPlaylistEditor-dev", {
   envName: "dev",
+  apiOriginDomainName: backendStack.apiDomainName,
   ...(env ? { env } : {})
 });

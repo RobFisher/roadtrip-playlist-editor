@@ -66,11 +66,24 @@ function buildSetCookie(sessionId, maxAgeSeconds) {
   const secureByDefault = process.env.SESSION_COOKIE_SECURE
     ? process.env.SESSION_COOKIE_SECURE === "true"
     : Boolean(process.env.AWS_EXECUTION_ENV);
+  const sameSite = String(process.env.SESSION_COOKIE_SAME_SITE ?? "")
+    .trim()
+    .toLowerCase();
+  const sameSiteValue =
+    sameSite === "none"
+      ? "None"
+      : sameSite === "strict"
+        ? "Strict"
+        : sameSite === "lax"
+          ? "Lax"
+          : process.env.AWS_EXECUTION_ENV
+            ? "None"
+            : "Lax";
   const parts = [
     `${SESSION_COOKIE_NAME}=${encodeURIComponent(sessionId)}`,
     "Path=/",
     "HttpOnly",
-    "SameSite=Lax",
+    `SameSite=${sameSiteValue}`,
     `Max-Age=${maxAgeSeconds}`
   ];
   if (secureByDefault) {
@@ -83,11 +96,24 @@ function clearCookieHeader() {
   const secureByDefault = process.env.SESSION_COOKIE_SECURE
     ? process.env.SESSION_COOKIE_SECURE === "true"
     : Boolean(process.env.AWS_EXECUTION_ENV);
+  const sameSite = String(process.env.SESSION_COOKIE_SAME_SITE ?? "")
+    .trim()
+    .toLowerCase();
+  const sameSiteValue =
+    sameSite === "none"
+      ? "None"
+      : sameSite === "strict"
+        ? "Strict"
+        : sameSite === "lax"
+          ? "Lax"
+          : process.env.AWS_EXECUTION_ENV
+            ? "None"
+            : "Lax";
   const parts = [
     `${SESSION_COOKIE_NAME}=`,
     "Path=/",
     "HttpOnly",
-    "SameSite=Lax",
+    `SameSite=${sameSiteValue}`,
     "Max-Age=0"
   ];
   if (secureByDefault) {

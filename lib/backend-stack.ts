@@ -1,4 +1,4 @@
-import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
+import { CfnOutput, Duration, Fn, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
 import {
   AttributeType,
   BillingMode,
@@ -32,6 +32,7 @@ function parseCorsAllowedOrigins(rawValue: string | undefined): string[] {
 
 export class BackendStack extends Stack {
   public readonly apiBaseUrl: string;
+  public readonly apiDomainName: string;
 
   constructor(scope: Construct, id: string, props: BackendStackProps) {
     super(scope, id, props);
@@ -62,6 +63,7 @@ export class BackendStack extends Stack {
         ENV_NAME: props.envName,
         VITE_GOOGLE_CLIENT_ID: process.env.VITE_GOOGLE_CLIENT_ID ?? "",
         SESSION_TTL_SECONDS: "604800",
+        SESSION_COOKIE_SAME_SITE: "None",
         SESSION_COOKIE_SECURE: "true"
       }
     });
@@ -118,6 +120,7 @@ export class BackendStack extends Stack {
     });
 
     this.apiBaseUrl = api.apiEndpoint;
+    this.apiDomainName = Fn.select(2, Fn.split("/", api.apiEndpoint));
 
     new CfnOutput(this, "Environment", {
       value: props.envName

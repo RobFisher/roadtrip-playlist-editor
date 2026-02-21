@@ -117,6 +117,7 @@ Important:
     - if unset, frontend calls relative `/api/*` paths.
     - in local dev, Vite proxies `/api/*` to `http://127.0.0.1:8787` by default.
     - override proxy target with `VITE_LOCAL_API_PROXY_TARGET`.
+    - for deployed CloudFront builds, recommended to leave unset so frontend uses same-origin `/api/*`.
 
 For local development with current backend placeholder:
 
@@ -147,11 +148,23 @@ That means:
 
 DynamoDB is used only after deploying the backend stack in AWS.
 
-For deployed frontend calling deployed API directly, set:
+Session cookie behavior:
+- Local (`http://127.0.0.1`) uses `SameSite=Lax` with non-secure cookie for dev convenience.
+- Deployed backend uses `SameSite=None; Secure` so CloudFront frontend can send session cookie to API Gateway across origins.
+
+If you want direct frontend -> API Gateway calls, set:
 
 ```bash
 VITE_API_BASE_URL=https://your-api-id.execute-api.<region>.amazonaws.com
 ```
+
+Recommended for deployed app:
+
+1. Leave `VITE_API_BASE_URL` unset in `.env.local`.
+2. Deploy backend + frontend with CDK.
+3. Frontend will call `/api/*` on CloudFront; CloudFront routes `/api/*` to API Gateway.
+
+This avoids browser third-party cookie restrictions between `cloudfront.net` and `execute-api.amazonaws.com`.
 
 For deployed login/session calls to succeed, backend CORS must allow your frontend origin.
 Set this in `.env.local` before backend deploy:
