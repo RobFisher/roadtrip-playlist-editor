@@ -18,14 +18,17 @@ const inMemoryProjectIdByNameKey = new Map();
 const inMemoryUsersById = new Map();
 const inMemorySessionsById = new Map();
 
-function json(statusCode, payload, extraHeaders = {}) {
+function json(statusCode, payload, options = {}) {
+  const headers = options.headers ?? {};
+  const cookies = options.cookies ?? [];
   return {
     statusCode,
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
-      ...extraHeaders
+      ...headers
     },
+    ...(cookies.length > 0 ? { cookies } : {}),
     body: JSON.stringify(payload)
   };
 }
@@ -781,7 +784,7 @@ export async function handler(event) {
             }
           },
           {
-            "set-cookie": buildSetCookie(session.sessionId, Math.max(300, sessionTtlSeconds))
+            cookies: [buildSetCookie(session.sessionId, Math.max(300, sessionTtlSeconds))]
           }
         );
       } catch (error) {
@@ -799,7 +802,7 @@ export async function handler(event) {
         200,
         { ok: true },
         {
-          "set-cookie": clearCookieHeader()
+          cookies: [clearCookieHeader()]
         }
       );
     }
