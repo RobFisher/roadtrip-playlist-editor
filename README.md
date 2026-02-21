@@ -126,9 +126,22 @@ For local development with current backend placeholder:
    ```
 
 The local backend verifies Google access tokens and creates an HttpOnly cookie session.
-For local `npm run dev:api`, it reads Google client ID from:
-- `GOOGLE_CLIENT_ID` (preferred), or
-- `VITE_GOOGLE_CLIENT_ID` fallback.
+It auto-loads `.env.local` (then `.env`) so you can use the same variable names as frontend:
+- `VITE_GOOGLE_CLIENT_ID`
+- `VITE_SPOTIFY_CLIENT_ID`
+- `VITE_SPOTIFY_REDIRECT_URI`
+- `VITE_API_BASE_URL` (optional for direct API origin mode)
+
+### Where local backend data is stored
+
+When you run `npm run dev:api`, backend project/user/session data is stored in process memory
+inside the local Node server (in-memory maps), not in DynamoDB.
+
+That means:
+- data persists only while `npm run dev:api` is running,
+- restarting the local backend clears stored backend projects/sessions.
+
+DynamoDB is used only after deploying the backend stack in AWS.
 
 For deployed frontend calling deployed API directly, set:
 
@@ -136,8 +149,8 @@ For deployed frontend calling deployed API directly, set:
 VITE_API_BASE_URL=https://your-api-id.execute-api.<region>.amazonaws.com
 ```
 
-For CDK deploys, ensure `VITE_GOOGLE_CLIENT_ID` is set in your shell before `cdk deploy`
-so backend token verification uses the expected Google OAuth client.
+For CDK deploys, `bin/cdk.ts` also loads `.env.local` and `.env`, so `VITE_GOOGLE_CLIENT_ID`
+in those files is picked up by the backend Lambda config.
 
 Current backend project rules:
 - Any logged-in Google user can list and load any backend project.
@@ -151,14 +164,40 @@ There is no backend persistence or multi-user system yet, so local usage is full
 
 ## AWS Account Actions Required Before First Deploy
 
-You need to do these steps in your AWS account:
+You need valid AWS CLI auth + region before deploy.
 
-1. Create a non-root deploy identity (user or role) with MFA.
-2. Configure AWS CLI credentials/profile for that identity.
-3. Bootstrap CDK for your account and region:
+### Quick Start: Verify AWS CLI Auth
+
+Pick one auth path:
+
+1. IAM user with access keys:
    ```bash
-   AWS_PROFILE=roadtrip-deployer AWS_REGION=<REGION> npx aws-cdk bootstrap aws://<ACCOUNT_ID>/<REGION>
+   aws configure --profile roadtrip-deployer
+   AWS_PROFILE=roadtrip-deployer aws sts get-caller-identity
    ```
+2. AWS SSO / IAM Identity Center:
+   ```bash
+   aws configure sso --profile roadtrip-deployer
+   aws sso login --profile roadtrip-deployer
+   AWS_PROFILE=roadtrip-deployer aws sts get-caller-identity
+   ```
+
+Then set region and run deploy commands with profile:
+
+```bash
+export AWS_PROFILE=roadtrip-deployer
+export AWS_REGION=<REGION>
+aws configure get region --profile "$AWS_PROFILE" || true
+```
+
+If you see `Unable to resolve AWS account to use`, run `aws sts get-caller-identity`
+with the same `AWS_PROFILE` you plan to use for deploy and ensure it succeeds first.
+
+### CDK bootstrap (one-time per account/region)
+
+```bash
+AWS_PROFILE=roadtrip-deployer AWS_REGION=<REGION> npx aws-cdk bootstrap aws://<ACCOUNT_ID>/<REGION>
+```
 
 Then from this repo:
 

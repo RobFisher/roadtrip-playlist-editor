@@ -609,9 +609,11 @@ async function getStore() {
 }
 
 async function verifyGoogleAccessToken(accessToken) {
-  const configuredClientId = String(process.env.GOOGLE_CLIENT_ID ?? "").trim();
+  const configuredClientId = String(
+    process.env.VITE_GOOGLE_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID ?? ""
+  ).trim();
   if (!configuredClientId) {
-    throw new Error("GOOGLE_CLIENT_ID is not configured in backend.");
+    throw new Error("VITE_GOOGLE_CLIENT_ID is not configured in backend.");
   }
 
   const tokenInfoResponse = await fetch(

@@ -45,7 +45,7 @@ export class BackendStack extends Stack {
       environment: {
         APP_TABLE_NAME: appTable.tableName,
         ENV_NAME: props.envName,
-        GOOGLE_CLIENT_ID: process.env.VITE_GOOGLE_CLIENT_ID ?? "",
+        VITE_GOOGLE_CLIENT_ID: process.env.VITE_GOOGLE_CLIENT_ID ?? "",
         SESSION_TTL_SECONDS: "604800",
         SESSION_COOKIE_SECURE: "true"
       }

@@ -1,14 +1,44 @@
+import { existsSync, readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { handler } from "./api-handler.mjs";
+
+function loadDotEnvFile(path) {
+  if (!existsSync(path)) {
+    return;
+  }
+  const content = readFileSync(path, "utf-8");
+  content.split(/\r?\n/).forEach((line) => {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      return;
+    }
+    const eqIndex = trimmed.indexOf("=");
+    if (eqIndex <= 0) {
+      return;
+    }
+    const key = trimmed.slice(0, eqIndex).trim();
+    if (!key || process.env[key] !== undefined) {
+      return;
+    }
+    let value = trimmed.slice(eqIndex + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  });
+}
+
+loadDotEnvFile(".env.local");
+loadDotEnvFile(".env");
 
 const host = process.env.LOCAL_API_HOST ?? "127.0.0.1";
 const port = Number.parseInt(process.env.LOCAL_API_PORT ?? "8787", 10);
 
 if (!process.env.SESSION_COOKIE_SECURE) {
   process.env.SESSION_COOKIE_SECURE = "false";
-}
-if (!process.env.GOOGLE_CLIENT_ID) {
-  process.env.GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID ?? "";
 }
 
 const server = createServer(async (req, res) => {

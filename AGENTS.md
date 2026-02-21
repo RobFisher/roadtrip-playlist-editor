@@ -37,8 +37,9 @@ Keep this file guide up to date whenever files are added, removed, renamed, or r
 - `src/hooks/useSpotifyImport.ts`: Encapsulates Spotify playlist import workflow state/logic (dialog state, playlist loading, import action, status, dev curl debug generation).
 - `src/projectPersistence.test.ts`: Schema parser/serializer tests for project save/load compatibility and validation errors.
 - `lib/backend-stack.ts`: CDK backend infrastructure skeleton (HTTP API, Lambda router, DynamoDB table + GSI, outputs).
+- `bin/cdk.ts`: CDK app entrypoint for frontend/backend stacks; now auto-loads `.env.local`/`.env` and avoids forcing unresolved account/region env values.
 - `backend/api-handler.mjs`: Backend API router for health, Google-token-backed session create/logout/probe (`/api/auth/google/session`, `/api/auth/logout`, `/api/me`), and backend project list/get/create/update with owner-only save enforcement.
-- `backend/local-api-server.mjs`: Node HTTP wrapper to run the backend placeholder API locally on `127.0.0.1:8787`.
+- `backend/local-api-server.mjs`: Node HTTP wrapper to run the backend API locally on `127.0.0.1:8787`; auto-loads `.env.local`/`.env` for consistent local env vars.
 
 ## Refactor Convention
 
