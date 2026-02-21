@@ -65,6 +65,27 @@ function parseCookies(cookieHeader) {
   return cookies;
 }
 
+function getSessionIdFromEvent(event) {
+  const headers = event?.headers ?? {};
+  const cookieHeader = String(headers.cookie ?? headers.Cookie ?? "");
+  const parsedFromHeader = parseCookies(cookieHeader);
+  const fromHeader = String(parsedFromHeader[SESSION_COOKIE_NAME] ?? "").trim();
+  if (fromHeader) {
+    return {
+      sessionId: fromHeader,
+      headerPresent: cookieHeader.length > 0
+    };
+  }
+
+  const cookieList = Array.isArray(event?.cookies) ? event.cookies : [];
+  const parsedFromList = parseCookies(cookieList.join("; "));
+  const fromList = String(parsedFromList[SESSION_COOKIE_NAME] ?? "").trim();
+  return {
+    sessionId: fromList,
+    headerPresent: cookieHeader.length > 0 || cookieList.length > 0
+  };
+}
+
 function buildSetCookie(sessionId, maxAgeSeconds) {
   const secureByDefault = process.env.SESSION_COOKIE_SECURE
     ? process.env.SESSION_COOKIE_SECURE === "true"
@@ -704,10 +725,7 @@ function readPath(event) {
 }
 
 async function getSessionActor(event, store) {
-  const headers = event?.headers ?? {};
-  const cookieHeader = headers.cookie ?? headers.Cookie ?? "";
-  const cookies = parseCookies(cookieHeader);
-  const sessionId = String(cookies[SESSION_COOKIE_NAME] ?? "").trim();
+  const { sessionId } = getSessionIdFromEvent(event);
   if (!sessionId) {
     return null;
   }
@@ -724,12 +742,9 @@ async function getSessionActor(event, store) {
 }
 
 function readSessionCookieDebug(event) {
-  const headers = event?.headers ?? {};
-  const cookieHeader = String(headers.cookie ?? headers.Cookie ?? "");
-  const cookies = parseCookies(cookieHeader);
-  const sessionId = String(cookies[SESSION_COOKIE_NAME] ?? "").trim();
+  const { sessionId, headerPresent } = getSessionIdFromEvent(event);
   return {
-    headerPresent: cookieHeader.length > 0,
+    headerPresent,
     hasSessionCookie: sessionId.length > 0,
     sessionIdPrefix: sessionId ? `${sessionId.slice(0, 8)}...` : null
   };
