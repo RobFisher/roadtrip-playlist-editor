@@ -22,9 +22,9 @@ This plan turns the current static frontend deployment into a minimal, productio
 
 Use Google as identity proof, but keep app session owned by our backend.
 
-1. Frontend gets Google ID token from Google Identity Services.
-2. Frontend calls `POST /api/auth/google/session` with ID token.
-3. Backend verifies token (`aud`, issuer, signature, expiry, email claim).
+1. Frontend gets Google access token from Google Identity Services.
+2. Frontend calls `POST /api/auth/google/session` with access token.
+3. Backend verifies token against Google tokeninfo endpoint and checks `aud` + expiry.
 4. Backend creates/updates local user record in DynamoDB.
 5. Backend sets an HTTP-only secure session cookie.
 6. Frontend calls `GET /api/me` on load to restore login after refresh.
@@ -91,7 +91,7 @@ GSI for user project listing:
 Auth:
 
 1. `POST /api/auth/google/session`
-   - body: `{ idToken: string }`
+   - body: `{ accessToken: string, displayName?: string }`
    - sets session cookie
    - returns: `{ user: { userId, email, displayName } }`
 2. `POST /api/auth/logout`
@@ -106,7 +106,7 @@ Projects:
 2. `POST /api/projects`
    - create project
 3. `GET /api/projects/{projectId}`
-   - fetch full project doc if member
+   - fetch full project doc for any authenticated user
 4. `PUT /api/projects/{projectId}`
    - save project doc only if caller is owner
 

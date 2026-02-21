@@ -4,6 +4,13 @@ import { handler } from "./api-handler.mjs";
 const host = process.env.LOCAL_API_HOST ?? "127.0.0.1";
 const port = Number.parseInt(process.env.LOCAL_API_PORT ?? "8787", 10);
 
+if (!process.env.SESSION_COOKIE_SECURE) {
+  process.env.SESSION_COOKIE_SECURE = "false";
+}
+if (!process.env.GOOGLE_CLIENT_ID) {
+  process.env.GOOGLE_CLIENT_ID = process.env.VITE_GOOGLE_CLIENT_ID ?? "";
+}
+
 const server = createServer(async (req, res) => {
   if (!req.url || !req.method) {
     res.statusCode = 400;

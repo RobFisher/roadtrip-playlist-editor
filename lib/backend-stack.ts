@@ -28,6 +28,7 @@ export class BackendStack extends Stack {
       partitionKey: { name: "pk", type: AttributeType.STRING },
       sortKey: { name: "sk", type: AttributeType.STRING },
       billingMode: BillingMode.PAY_PER_REQUEST,
+      timeToLiveAttribute: "ttlEpochSeconds",
       removalPolicy: RemovalPolicy.DESTROY
     });
 
@@ -43,7 +44,10 @@ export class BackendStack extends Stack {
       code: Code.fromAsset("backend"),
       environment: {
         APP_TABLE_NAME: appTable.tableName,
-        ENV_NAME: props.envName
+        ENV_NAME: props.envName,
+        GOOGLE_CLIENT_ID: process.env.VITE_GOOGLE_CLIENT_ID ?? "",
+        SESSION_TTL_SECONDS: "604800",
+        SESSION_COOKIE_SECURE: "true"
       }
     });
 
@@ -60,10 +64,7 @@ export class BackendStack extends Stack {
         ],
         allowHeaders: [
           "content-type",
-          "authorization",
-          "x-google-user-id",
-          "x-google-email",
-          "x-google-display-name"
+          "authorization"
         ],
         allowCredentials: true
       }
@@ -78,6 +79,16 @@ export class BackendStack extends Stack {
     api.addRoutes({
       path: "/api/me",
       methods: [HttpMethod.GET],
+      integration
+    });
+    api.addRoutes({
+      path: "/api/auth/google/session",
+      methods: [HttpMethod.POST],
+      integration
+    });
+    api.addRoutes({
+      path: "/api/auth/logout",
+      methods: [HttpMethod.POST],
       integration
     });
     api.addRoutes({

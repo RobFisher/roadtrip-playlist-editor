@@ -1,4 +1,4 @@
-export interface BackendActor {
+export interface BackendSessionUser {
   userId: string;
   email: string;
   displayName: string;
@@ -15,11 +15,7 @@ export interface BackendProject {
 
 export interface BackendMeResponse {
   authenticated: boolean;
-  user: null | {
-    userId: string;
-    email: string;
-    displayName: string;
-  };
+  user: BackendSessionUser | null;
 }
 
 function normalizeApiBaseUrl(rawValue: string | undefined): string {
@@ -46,18 +42,6 @@ function buildApiPath(path: string): string {
   return `${baseUrl}${path}`;
 }
 
-function buildHeaders(actor: BackendActor | null): HeadersInit {
-  const headers: Record<string, string> = {
-    "content-type": "application/json"
-  };
-  if (actor) {
-    headers["x-google-user-id"] = actor.userId;
-    headers["x-google-email"] = actor.email;
-    headers["x-google-display-name"] = actor.displayName;
-  }
-  return headers;
-}
-
 async function parseResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     const text = await response.text();
@@ -66,31 +50,51 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function getBackendMe(actor: BackendActor | null): Promise<BackendMeResponse> {
+export async function createBackendGoogleSession(
+  accessToken: string,
+  displayName?: string
+): Promise<BackendMeResponse> {
+  const response = await fetch(buildApiPath("/api/auth/google/session"), {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    credentials: "include",
+    body: JSON.stringify({
+      accessToken,
+      displayName: displayName?.trim() || undefined
+    })
+  });
+  return await parseResponse<BackendMeResponse>(response);
+}
+
+export async function logoutBackendSession(): Promise<void> {
+  const response = await fetch(buildApiPath("/api/auth/logout"), {
+    method: "POST",
+    credentials: "include"
+  });
+  await parseResponse<{ ok: boolean }>(response);
+}
+
+export async function getBackendMe(): Promise<BackendMeResponse> {
   const response = await fetch(buildApiPath("/api/me"), {
-    headers: buildHeaders(actor),
     credentials: "include"
   });
   return await parseResponse<BackendMeResponse>(response);
 }
 
-export async function listBackendProjects(actor: BackendActor): Promise<BackendProject[]> {
+export async function listBackendProjects(): Promise<BackendProject[]> {
   const response = await fetch(buildApiPath("/api/projects"), {
     method: "GET",
-    headers: buildHeaders(actor),
     credentials: "include"
   });
   const parsed = await parseResponse<{ projects: BackendProject[] }>(response);
   return parsed.projects;
 }
 
-export async function getBackendProject(
-  actor: BackendActor,
-  projectId: string
-): Promise<BackendProject> {
+export async function getBackendProject(projectId: string): Promise<BackendProject> {
   const response = await fetch(buildApiPath(`/api/projects/${encodeURIComponent(projectId)}`), {
     method: "GET",
-    headers: buildHeaders(actor),
     credentials: "include"
   });
   const parsed = await parseResponse<{ project: BackendProject }>(response);
@@ -98,13 +102,14 @@ export async function getBackendProject(
 }
 
 export async function createBackendProject(
-  actor: BackendActor,
   name: string,
   payload: unknown
 ): Promise<BackendProject> {
   const response = await fetch(buildApiPath("/api/projects"), {
     method: "POST",
-    headers: buildHeaders(actor),
+    headers: {
+      "content-type": "application/json"
+    },
     credentials: "include",
     body: JSON.stringify({ name, payload })
   });
@@ -113,14 +118,15 @@ export async function createBackendProject(
 }
 
 export async function updateBackendProject(
-  actor: BackendActor,
   projectId: string,
   name: string,
   payload: unknown
 ): Promise<BackendProject> {
   const response = await fetch(buildApiPath(`/api/projects/${encodeURIComponent(projectId)}`), {
     method: "PUT",
-    headers: buildHeaders(actor),
+    headers: {
+      "content-type": "application/json"
+    },
     credentials: "include",
     body: JSON.stringify({ name, payload })
   });

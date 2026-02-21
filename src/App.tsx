@@ -25,13 +25,15 @@ import { usePaneDragDrop } from "./hooks/usePaneDragDrop.js";
 import { useGoogleAuth } from "./hooks/useGoogleAuth.js";
 import { useSpotifyImport } from "./hooks/useSpotifyImport.js";
 import {
+  createBackendGoogleSession,
   createBackendProject,
   getBackendMe,
   getBackendProject,
   listBackendProjects,
+  logoutBackendSession,
   updateBackendProject,
-  type BackendActor,
-  type BackendProject
+  type BackendProject,
+  type BackendSessionUser
 } from "./backendApi.js";
 import {
   addItemsToSpotifyPlaylist,
@@ -213,29 +215,19 @@ export function App() {
   const [backendLoadProjects, setBackendLoadProjects] = useState<BackendProject[]>([]);
   const [backendLoadSelectedProjectId, setBackendLoadSelectedProjectId] = useState("");
   const [backendLoadLoading, setBackendLoadLoading] = useState(false);
+  const [backendSessionUser, setBackendSessionUser] = useState<BackendSessionUser | null>(null);
   const [loadedBackendProject, setLoadedBackendProject] =
     useState<LoadedBackendProjectContext | null>(null);
 
-  const googleConnected = Boolean(googleToken && googleUser);
+  const googleConnected = Boolean(backendSessionUser);
   const googleDisplayName = googleUser ? googleDisplayNameByUserId[googleUser.sub] ?? null : null;
-  const backendActor: BackendActor | null = googleUser
-    ? {
-        userId: googleUser.sub,
-        email: googleUser.email,
-        displayName:
-          googleDisplayName ??
-          (normalizeDisplayName(googleUser.name) || googleUser.email)
-      }
-    : null;
   const loadedProjectOwnedByCurrentUser = Boolean(
-    backendActor &&
+    backendSessionUser &&
       loadedBackendProject &&
-      loadedBackendProject.ownerUserId === backendActor.userId
+      loadedBackendProject.ownerUserId === backendSessionUser.userId
   );
   const googleStatus = googleConnected
-    ? googleDisplayName
-      ? `Google: ${googleDisplayName}`
-      : "Google connected. Set your display name to continue."
+    ? `Google: ${backendSessionUser?.displayName ?? backendSessionUser?.email ?? "Connected"}`
     : null;
   const spotifyConnected = Boolean(spotifyToken);
   const spotifyBusy =
@@ -269,39 +261,42 @@ export function App() {
   }, [googleDisplayNameByUserId, googleUser]);
 
   useEffect(() => {
-    if (!backendActor) {
+    if (!backendSessionUser) {
       setLoadedBackendProject(null);
     }
-  }, [backendActor]);
+  }, [backendSessionUser]);
+
+  async function refreshBackendSessionStatus(): Promise<BackendSessionUser | null> {
+    try {
+      const me = await getBackendMe();
+      if (me.authenticated && me.user) {
+        setBackendSessionUser(me.user);
+        setBackendStatus(`Backend session active for ${me.user.displayName}.`);
+        return me.user;
+      }
+      setBackendSessionUser(null);
+      setBackendStatus("Backend reachable. No active app session.");
+      return null;
+    } catch {
+      setBackendSessionUser(null);
+      setBackendStatus("Backend not reachable from this environment.");
+      return null;
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
-
     const run = async () => {
-      try {
-        const me = await getBackendMe(backendActor);
-        if (cancelled) {
-          return;
-        }
-        setBackendStatus(
-          me.authenticated
-            ? `Backend session active for ${me.user?.displayName ?? me.user?.email ?? "user"}.`
-            : "Backend reachable. No active app session."
-        );
-      } catch {
-        if (cancelled) {
-          return;
-        }
-        setBackendStatus("Backend not reachable from this environment.");
+      const user = await refreshBackendSessionStatus();
+      if (!cancelled && !user) {
+        setLoadedBackendProject(null);
       }
     };
-
     void run();
-
     return () => {
       cancelled = true;
     };
-  }, [backendActor]);
+  }, []);
 
   const spotifyExportSourcePlaylist = useMemo(() => {
     if (spotifyExportDialogPaneIndex === null) {
@@ -775,15 +770,62 @@ export function App() {
     void connectSpotify();
   }
 
+  async function establishBackendSession(
+    accessToken: string,
+    fallbackUserId: string,
+    fallbackEmail: string,
+    fallbackName: string
+  ): Promise<void> {
+    const preferredDisplayName =
+      googleDisplayNameByUserId[fallbackUserId] ??
+      (normalizeDisplayName(fallbackName) || fallbackEmail);
+    try {
+      const me = await createBackendGoogleSession(accessToken, preferredDisplayName);
+      if (me.authenticated && me.user) {
+        setBackendSessionUser(me.user);
+        setBackendStatus(`Backend session active for ${me.user.displayName}.`);
+      } else {
+        await refreshBackendSessionStatus();
+      }
+    } catch (error) {
+      setBackendStatus(
+        error instanceof Error
+          ? error.message
+          : "Failed to establish backend session after Google login."
+      );
+    }
+  }
+
   function toggleGoogleConnection(): void {
     if (googleConnected) {
-      void disconnectGoogle();
-      setGoogleDisplayNameDialogOpen(false);
-      setLoadedBackendProject(null);
-      setBackendLoadDialogOpen(false);
+      void (async () => {
+        await logoutBackendSession();
+        await disconnectGoogle();
+        setBackendSessionUser(null);
+        setGoogleDisplayNameDialogOpen(false);
+        setLoadedBackendProject(null);
+        setBackendLoadDialogOpen(false);
+        setBackendStatus("Signed out.");
+      })();
       return;
     }
-    void connectGoogle();
+    void (async () => {
+      const result = await connectGoogle();
+      if (!result) {
+        return;
+      }
+      const existingDisplayName = googleDisplayNameByUserId[result.user.sub];
+      if (!existingDisplayName) {
+        setGoogleDisplayNameDraft(normalizeDisplayName(result.user.name) || result.user.email);
+        setGoogleDisplayNameDialogOpen(true);
+      }
+      await establishBackendSession(
+        result.accessToken,
+        result.user.sub,
+        result.user.email,
+        result.user.name
+      );
+    })();
   }
 
   function saveGoogleDisplayName(): void {
@@ -799,11 +841,24 @@ export function App() {
       [googleUser.sub]: normalizedDisplayName
     }));
     setGoogleDisplayNameDialogOpen(false);
+    if (googleToken) {
+      void establishBackendSession(
+        googleToken,
+        googleUser.sub,
+        googleUser.email,
+        normalizedDisplayName
+      );
+    }
   }
 
   function cancelGoogleDisplayNameSetup(): void {
     setGoogleDisplayNameDialogOpen(false);
-    void disconnectGoogle();
+    void (async () => {
+      await logoutBackendSession();
+      await disconnectGoogle();
+      setBackendSessionUser(null);
+      setLoadedBackendProject(null);
+    })();
   }
 
   function createPlaylistFromDialog(): void {
@@ -911,7 +966,7 @@ export function App() {
   }
 
   async function saveProjectToBackend(): Promise<void> {
-    if (!backendActor) {
+    if (!backendSessionUser) {
       setProjectStatus("Login with Google to save projects to the backend.");
       return;
     }
@@ -934,14 +989,13 @@ export function App() {
       let savedProject: BackendProject;
       if (loadedBackendProject && loadedProjectOwnedByCurrentUser) {
         savedProject = await updateBackendProject(
-          backendActor,
           loadedBackendProject.projectId,
           normalizedName,
           payload
         );
         setProjectStatus(`Saved backend project "${savedProject.name}".`);
       } else {
-        savedProject = await createBackendProject(backendActor, normalizedName, payload);
+        savedProject = await createBackendProject(normalizedName, payload);
         if (loadedBackendProject && !loadedProjectOwnedByCurrentUser) {
           setProjectStatus(
             `Saved as a new project "${savedProject.name}" because only owners can update existing projects.`
@@ -968,8 +1022,8 @@ export function App() {
   function openSaveProjectDialog(): void {
     if (
       loadedBackendProject &&
-      backendActor &&
-      loadedBackendProject.ownerUserId !== backendActor.userId
+      backendSessionUser &&
+      loadedBackendProject.ownerUserId !== backendSessionUser.userId
     ) {
       const suggestedCopyName = normalizeProjectName(projectName)
         ? `${normalizeProjectName(projectName)} (copy)`
@@ -985,13 +1039,13 @@ export function App() {
   }
 
   async function refreshBackendProjectList(): Promise<void> {
-    if (!backendActor) {
+    if (!backendSessionUser) {
       setProjectStatus("Login with Google to load backend projects.");
       return;
     }
     setBackendLoadLoading(true);
     try {
-      const projects = await listBackendProjects(backendActor);
+      const projects = await listBackendProjects();
       setBackendLoadProjects(projects);
       setBackendLoadSelectedProjectId((current) => {
         if (projects.length === 0) {
@@ -1015,7 +1069,7 @@ export function App() {
   }
 
   function openLoadProjectPicker(): void {
-    if (backendActor) {
+    if (backendSessionUser) {
       setBackendLoadDialogOpen(true);
       void refreshBackendProjectList();
       return;
@@ -1028,12 +1082,12 @@ export function App() {
   }
 
   async function loadSelectedBackendProject(): Promise<void> {
-    if (!backendActor || !backendLoadSelectedProjectId) {
+    if (!backendSessionUser || !backendLoadSelectedProjectId) {
       return;
     }
     setBackendLoadLoading(true);
     try {
-      const project = await getBackendProject(backendActor, backendLoadSelectedProjectId);
+      const project = await getBackendProject(backendLoadSelectedProjectId);
       const parsed = parseProjectState(JSON.stringify(project.payload));
       applyLoadedProjectState(parsed);
       setLoadedBackendProject({
@@ -1043,7 +1097,7 @@ export function App() {
       });
       setBackendLoadDialogOpen(false);
       setProjectStatus(
-        project.ownerUserId === backendActor.userId
+        project.ownerUserId === backendSessionUser.userId
           ? `Loaded your backend project "${project.name}".`
           : `Loaded "${project.name}" (owner: ${project.ownerUserId}). You can only save a new copy as your own project.`
       );
@@ -1178,7 +1232,7 @@ export function App() {
         isOpen={saveProjectDialogOpen}
         projectName={projectName}
         onProjectNameChange={setProjectName}
-        onSave={() => void (backendActor ? saveProjectToBackend() : saveProjectToFile())}
+        onSave={() => void (backendSessionUser ? saveProjectToBackend() : saveProjectToFile())}
         onCancel={() => setSaveProjectDialogOpen(false)}
       />
       <BackendProjectLoadDialog
@@ -1186,7 +1240,7 @@ export function App() {
         loading={backendLoadLoading}
         projects={backendLoadProjects}
         selectedProjectId={backendLoadSelectedProjectId}
-        currentUserId={backendActor?.userId ?? null}
+        currentUserId={backendSessionUser?.userId ?? null}
         onSelectedProjectIdChange={setBackendLoadSelectedProjectId}
         onReload={() => void refreshBackendProjectList()}
         onLoadSelected={() => void loadSelectedBackendProject()}

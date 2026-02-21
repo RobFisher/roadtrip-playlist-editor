@@ -125,11 +125,19 @@ For local development with current backend placeholder:
    npm run dev
    ```
 
+The local backend verifies Google access tokens and creates an HttpOnly cookie session.
+For local `npm run dev:api`, it reads Google client ID from:
+- `GOOGLE_CLIENT_ID` (preferred), or
+- `VITE_GOOGLE_CLIENT_ID` fallback.
+
 For deployed frontend calling deployed API directly, set:
 
 ```bash
 VITE_API_BASE_URL=https://your-api-id.execute-api.<region>.amazonaws.com
 ```
+
+For CDK deploys, ensure `VITE_GOOGLE_CLIENT_ID` is set in your shell before `cdk deploy`
+so backend token verification uses the expected Google OAuth client.
 
 Current backend project rules:
 - Any logged-in Google user can list and load any backend project.

@@ -12,7 +12,10 @@ export interface UseGoogleAuthResult {
   googleUser: GoogleUserProfile | null;
   googleAuthError: string | null;
   googleAuthLoading: boolean;
-  connectGoogle: () => Promise<void>;
+  connectGoogle: () => Promise<{
+    accessToken: string;
+    user: GoogleUserProfile;
+  } | null>;
   disconnectGoogle: () => Promise<void>;
 }
 
@@ -24,10 +27,13 @@ export function useGoogleAuth(): UseGoogleAuthResult {
 
   const googleClientId = useMemo(() => import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "", []);
 
-  async function connectGoogle(): Promise<void> {
+  async function connectGoogle(): Promise<{
+    accessToken: string;
+    user: GoogleUserProfile;
+  } | null> {
     if (!googleClientId) {
       setGoogleAuthError("Missing VITE_GOOGLE_CLIENT_ID. Check README setup.");
-      return;
+      return null;
     }
 
     setGoogleAuthLoading(true);
@@ -39,10 +45,15 @@ export function useGoogleAuth(): UseGoogleAuthResult {
       setGoogleToken(token.accessToken);
       setGoogleUser(profile);
       setGoogleAuthError(null);
+      return {
+        accessToken: token.accessToken,
+        user: profile
+      };
     } catch (error) {
       setGoogleToken(null);
       setGoogleUser(null);
       setGoogleAuthError(error instanceof Error ? error.message : "Google login failed.");
+      return null;
     } finally {
       setGoogleAuthLoading(false);
     }
