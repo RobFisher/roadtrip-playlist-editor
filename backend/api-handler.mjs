@@ -846,6 +846,31 @@ export async function handler(event) {
       });
     }
 
+    if (method === "POST" && path === "/api/debug/set-cookie") {
+      if ((process.env.ENV_NAME ?? "").toLowerCase() !== "dev") {
+        return json(404, { message: "Not found." });
+      }
+      const sessionTtlSeconds = Number.parseInt(
+        String(process.env.SESSION_TTL_SECONDS ?? "604800"),
+        10
+      );
+      return json(
+        200,
+        {
+          ok: true,
+          message: "Debug cookie written."
+        },
+        {
+          cookies: [
+            buildSetCookie(
+              `debug-${crypto.randomBytes(8).toString("hex")}`,
+              Math.max(300, sessionTtlSeconds)
+            )
+          ]
+        }
+      );
+    }
+
     if (method === "GET" && path === "/api/projects") {
       const unauthorized = requireActor(actor);
       if (unauthorized) {

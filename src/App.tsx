@@ -33,6 +33,7 @@ import {
   getBackendProject,
   listBackendProjects,
   logoutBackendSession,
+  setBackendDebugCookie,
   updateBackendProject,
   type BackendProject,
   type BackendSessionUser
@@ -68,6 +69,8 @@ interface AuthDebugState {
   meResult: string;
   sessionCheckedAt: string | null;
   sessionResult: string;
+  cookieWriteCheckedAt: string | null;
+  cookieWriteResult: string;
 }
 
 function normalizePlaylistName(value: string): string {
@@ -231,7 +234,9 @@ export function App() {
     meCheckedAt: null,
     meResult: "Not checked yet.",
     sessionCheckedAt: null,
-    sessionResult: "Not checked yet."
+    sessionResult: "Not checked yet.",
+    cookieWriteCheckedAt: null,
+    cookieWriteResult: "Not checked yet."
   });
 
   const googleConnected = Boolean(backendSessionUser);
@@ -340,6 +345,26 @@ export function App() {
         sessionCheckedAt: new Date().toISOString(),
         sessionResult:
           error instanceof Error ? error.message : "Unknown /api/debug/session error"
+      }));
+    }
+  }
+
+  async function runCookieWriteDebugProbe(): Promise<void> {
+    try {
+      const result = await setBackendDebugCookie();
+      setAuthDebug((prev) => ({
+        ...prev,
+        cookieWriteCheckedAt: new Date().toISOString(),
+        cookieWriteResult: JSON.stringify(result)
+      }));
+      await runSessionDebugProbe();
+      await refreshBackendSessionStatus();
+    } catch (error) {
+      setAuthDebug((prev) => ({
+        ...prev,
+        cookieWriteCheckedAt: new Date().toISOString(),
+        cookieWriteResult:
+          error instanceof Error ? error.message : "Unknown /api/debug/set-cookie error"
       }));
     }
   }
@@ -1256,7 +1281,14 @@ export function App() {
         <div className="auth-debug-actions">
           <button onClick={() => void refreshBackendSessionStatus()}>Probe /api/me</button>
           <button onClick={() => void runSessionDebugProbe()}>Probe /api/debug/session</button>
+          <button onClick={() => void runCookieWriteDebugProbe()}>
+            Probe /api/debug/set-cookie
+          </button>
         </div>
+        <p>
+          Last /api/debug/set-cookie check ({authDebug.cookieWriteCheckedAt ?? "never"}):{" "}
+          <code>{authDebug.cookieWriteResult}</code>
+        </p>
         <p>
           Last /api/me check ({authDebug.meCheckedAt ?? "never"}): <code>{authDebug.meResult}</code>
         </p>

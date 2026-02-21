@@ -104,6 +104,11 @@ export class BackendStack extends Stack {
       integration
     });
     api.addRoutes({
+      path: "/api/debug/set-cookie",
+      methods: [HttpMethod.POST],
+      integration
+    });
+    api.addRoutes({
       path: "/api/auth/google/session",
       methods: [HttpMethod.POST],
       integration

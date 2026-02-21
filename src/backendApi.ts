@@ -114,6 +114,14 @@ export async function getBackendSessionDebug(): Promise<BackendSessionDebugRespo
   return await parseResponse<BackendSessionDebugResponse>(response);
 }
 
+export async function setBackendDebugCookie(): Promise<{ ok: boolean; message: string }> {
+  const response = await fetch(buildApiPath("/api/debug/set-cookie"), {
+    method: "POST",
+    credentials: "include"
+  });
+  return await parseResponse<{ ok: boolean; message: string }>(response);
+}
+
 export async function listBackendProjects(): Promise<BackendProject[]> {
   const response = await fetch(buildApiPath("/api/projects"), {
     method: "GET",
