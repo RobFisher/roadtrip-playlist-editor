@@ -784,6 +784,12 @@ export async function handler(event) {
             }
           },
           {
+            headers: {
+              "set-cookie": buildSetCookie(
+                session.sessionId,
+                Math.max(300, sessionTtlSeconds)
+              )
+            },
             cookies: [buildSetCookie(session.sessionId, Math.max(300, sessionTtlSeconds))]
           }
         );
@@ -802,6 +808,9 @@ export async function handler(event) {
         200,
         { ok: true },
         {
+          headers: {
+            "set-cookie": clearCookieHeader()
+          },
           cookies: [clearCookieHeader()]
         }
       );
@@ -854,6 +863,10 @@ export async function handler(event) {
         String(process.env.SESSION_TTL_SECONDS ?? "604800"),
         10
       );
+      const debugCookie = buildSetCookie(
+        `debug-${crypto.randomBytes(8).toString("hex")}`,
+        Math.max(300, sessionTtlSeconds)
+      );
       return json(
         200,
         {
@@ -861,12 +874,10 @@ export async function handler(event) {
           message: "Debug cookie written."
         },
         {
-          cookies: [
-            buildSetCookie(
-              `debug-${crypto.randomBytes(8).toString("hex")}`,
-              Math.max(300, sessionTtlSeconds)
-            )
-          ]
+          headers: {
+            "set-cookie": debugCookie
+          },
+          cookies: [debugCookie]
         }
       );
     }
