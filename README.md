@@ -25,6 +25,10 @@ Current status:
    ```bash
    npm ci
    ```
+3. Create local env file from the example:
+   ```bash
+   cp .env.local.example .env.local
+   ```
 
 Dependency policy: avoid upgrading npm dependencies unless explicitly requested.
 
