@@ -21,8 +21,16 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  const chunks = [];
+  for await (const chunk of req) {
+    chunks.push(chunk);
+  }
+  const bodyBuffer = chunks.length > 0 ? Buffer.concat(chunks) : null;
+
   const event = {
     rawPath: req.url.split("?")[0],
+    body: bodyBuffer ? bodyBuffer.toString("utf-8") : "",
+    headers: req.headers,
     requestContext: {
       http: {
         method: req.method

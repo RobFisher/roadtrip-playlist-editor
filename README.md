@@ -131,6 +131,11 @@ For deployed frontend calling deployed API directly, set:
 VITE_API_BASE_URL=https://your-api-id.execute-api.<region>.amazonaws.com
 ```
 
+Current backend project rules:
+- Any logged-in Google user can list and load any backend project.
+- Only the owner can save updates to an existing backend project.
+- If you loaded someone else's project, saving creates a new project under your own user with a new unique name.
+
 ## AWS Deployment (Optional At This Stage)
 
 Deploying to AWS is useful for sharing a hosted frontend URL, but it is optional right now.

@@ -58,7 +58,13 @@ export class BackendStack extends Stack {
           CorsHttpMethod.PUT,
           CorsHttpMethod.OPTIONS
         ],
-        allowHeaders: ["content-type", "authorization"],
+        allowHeaders: [
+          "content-type",
+          "authorization",
+          "x-google-user-id",
+          "x-google-email",
+          "x-google-display-name"
+        ],
         allowCredentials: true
       }
     });
@@ -72,6 +78,16 @@ export class BackendStack extends Stack {
     api.addRoutes({
       path: "/api/me",
       methods: [HttpMethod.GET],
+      integration
+    });
+    api.addRoutes({
+      path: "/api/projects",
+      methods: [HttpMethod.GET, HttpMethod.POST],
+      integration
+    });
+    api.addRoutes({
+      path: "/api/projects/{projectId}",
+      methods: [HttpMethod.GET, HttpMethod.PUT],
       integration
     });
 

@@ -102,15 +102,19 @@ Auth:
 Projects:
 
 1. `GET /api/projects`
-   - list projects user can access
+   - list all projects for any authenticated user
 2. `POST /api/projects`
    - create project
 3. `GET /api/projects/{projectId}`
    - fetch full project doc if member
 4. `PUT /api/projects/{projectId}`
-   - save project doc; enforce optimistic version check
-5. `POST /api/projects/{projectId}/invite`
-   - add member by email (later phase)
+   - save project doc only if caller is owner
+
+## Authorization Rules (Current Simplified Model)
+
+1. Any authenticated user can load any project.
+2. Only the project owner can update that project.
+3. If a non-owner wants to save changes, frontend creates a new project via `POST /api/projects` with a unique name and the caller as owner.
 
 ## Security Baseline
 

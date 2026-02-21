@@ -11,6 +11,7 @@ import {
   type PaneMode
 } from "./projectPersistence.js";
 import { DeleteListDialog } from "./components/DeleteListDialog.js";
+import { BackendProjectLoadDialog } from "./components/BackendProjectLoadDialog.js";
 import { GoogleDisplayNameDialog } from "./components/GoogleDisplayNameDialog.js";
 import { NewPlaylistDialog } from "./components/NewPlaylistDialog.js";
 import { PlaylistPane } from "./components/PlaylistPane.js";
@@ -24,11 +25,19 @@ import { usePaneDragDrop } from "./hooks/usePaneDragDrop.js";
 import { useGoogleAuth } from "./hooks/useGoogleAuth.js";
 import { useSpotifyImport } from "./hooks/useSpotifyImport.js";
 import {
+  createBackendProject,
+  getBackendMe,
+  getBackendProject,
+  listBackendProjects,
+  updateBackendProject,
+  type BackendActor,
+  type BackendProject
+} from "./backendApi.js";
+import {
   addItemsToSpotifyPlaylist,
   createSpotifyPlaylist,
   searchSpotifyTracks
 } from "./spotify.js";
-import { getBackendMe } from "./backendApi.js";
 
 const initialPanePlaylistIds = seedProjectData.playlists.slice(0, 3).map((p) => p.id);
 const initialPaneModes: PaneMode[] = initialPanePlaylistIds.map(() => "playlist");
@@ -42,6 +51,12 @@ interface PaneSearchState {
   query: string;
   nextOffset: number;
   total: number;
+}
+
+interface LoadedBackendProjectContext {
+  projectId: string;
+  ownerUserId: string;
+  version: number;
 }
 
 function normalizePlaylistName(value: string): string {
@@ -194,9 +209,29 @@ export function App() {
   });
   const [projectStatus, setProjectStatus] = useState<string | null>(null);
   const [backendStatus, setBackendStatus] = useState<string | null>(null);
+  const [backendLoadDialogOpen, setBackendLoadDialogOpen] = useState(false);
+  const [backendLoadProjects, setBackendLoadProjects] = useState<BackendProject[]>([]);
+  const [backendLoadSelectedProjectId, setBackendLoadSelectedProjectId] = useState("");
+  const [backendLoadLoading, setBackendLoadLoading] = useState(false);
+  const [loadedBackendProject, setLoadedBackendProject] =
+    useState<LoadedBackendProjectContext | null>(null);
 
   const googleConnected = Boolean(googleToken && googleUser);
   const googleDisplayName = googleUser ? googleDisplayNameByUserId[googleUser.sub] ?? null : null;
+  const backendActor: BackendActor | null = googleUser
+    ? {
+        userId: googleUser.sub,
+        email: googleUser.email,
+        displayName:
+          googleDisplayName ??
+          (normalizeDisplayName(googleUser.name) || googleUser.email)
+      }
+    : null;
+  const loadedProjectOwnedByCurrentUser = Boolean(
+    backendActor &&
+      loadedBackendProject &&
+      loadedBackendProject.ownerUserId === backendActor.userId
+  );
   const googleStatus = googleConnected
     ? googleDisplayName
       ? `Google: ${googleDisplayName}`
@@ -234,11 +269,17 @@ export function App() {
   }, [googleDisplayNameByUserId, googleUser]);
 
   useEffect(() => {
+    if (!backendActor) {
+      setLoadedBackendProject(null);
+    }
+  }, [backendActor]);
+
+  useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
       try {
-        const me = await getBackendMe();
+        const me = await getBackendMe(backendActor);
         if (cancelled) {
           return;
         }
@@ -260,7 +301,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [backendActor]);
 
   const spotifyExportSourcePlaylist = useMemo(() => {
     if (spotifyExportDialogPaneIndex === null) {
@@ -738,6 +779,8 @@ export function App() {
     if (googleConnected) {
       void disconnectGoogle();
       setGoogleDisplayNameDialogOpen(false);
+      setLoadedBackendProject(null);
+      setBackendLoadDialogOpen(false);
       return;
     }
     void connectGoogle();
@@ -820,6 +863,25 @@ export function App() {
     setSelectedSong(null);
   }
 
+  function applyLoadedProjectState(parsed: {
+    projectName?: string;
+    songs: typeof songs;
+    playlists: typeof playlists;
+    panePlaylistIds: typeof panePlaylistIds;
+    paneModes: typeof paneModes;
+  }): void {
+    setSongs(parsed.songs);
+    setPlaylists(parsed.playlists);
+    setPanePlaylistIds(parsed.panePlaylistIds);
+    setPaneModes(parsed.paneModes);
+    setPaneSearchStates(parsed.panePlaylistIds.map(() => null));
+    setProjectName(parsed.projectName ?? "Untitled Project");
+    setSelectedSong(null);
+    setNewPlaylistDialogPaneIndex(null);
+    closeSpotifyImportDialog();
+    closeSpotifySearchDialog();
+  }
+
   function saveProjectToFile(): void {
     const normalizedName = normalizeProjectName(projectName);
     if (!normalizedName) {
@@ -848,17 +910,150 @@ export function App() {
     setSaveProjectDialogOpen(false);
   }
 
+  async function saveProjectToBackend(): Promise<void> {
+    if (!backendActor) {
+      setProjectStatus("Login with Google to save projects to the backend.");
+      return;
+    }
+
+    const normalizedName = normalizeProjectName(projectName);
+    if (!normalizedName) {
+      setProjectStatus("Project name is required to save.");
+      return;
+    }
+
+    const payload = serializeProjectState(
+      normalizedName,
+      songs,
+      playlists,
+      panePlaylistIds,
+      paneModes
+    );
+
+    try {
+      let savedProject: BackendProject;
+      if (loadedBackendProject && loadedProjectOwnedByCurrentUser) {
+        savedProject = await updateBackendProject(
+          backendActor,
+          loadedBackendProject.projectId,
+          normalizedName,
+          payload
+        );
+        setProjectStatus(`Saved backend project "${savedProject.name}".`);
+      } else {
+        savedProject = await createBackendProject(backendActor, normalizedName, payload);
+        if (loadedBackendProject && !loadedProjectOwnedByCurrentUser) {
+          setProjectStatus(
+            `Saved as a new project "${savedProject.name}" because only owners can update existing projects.`
+          );
+        } else {
+          setProjectStatus(`Created backend project "${savedProject.name}".`);
+        }
+      }
+
+      setLoadedBackendProject({
+        projectId: savedProject.projectId,
+        ownerUserId: savedProject.ownerUserId,
+        version: savedProject.version
+      });
+      setProjectName(savedProject.name);
+      setSaveProjectDialogOpen(false);
+    } catch (error) {
+      setProjectStatus(
+        error instanceof Error ? error.message : "Failed to save project to backend."
+      );
+    }
+  }
+
   function openSaveProjectDialog(): void {
-    setProjectName((prev) => normalizeProjectName(prev) || "Untitled Project");
+    if (
+      loadedBackendProject &&
+      backendActor &&
+      loadedBackendProject.ownerUserId !== backendActor.userId
+    ) {
+      const suggestedCopyName = normalizeProjectName(projectName)
+        ? `${normalizeProjectName(projectName)} (copy)`
+        : "Untitled Project (copy)";
+      setProjectName(suggestedCopyName);
+      setProjectStatus(
+        "Loaded project is owned by another user. Saving will create your own project with a unique name."
+      );
+    } else {
+      setProjectName((prev) => normalizeProjectName(prev) || "Untitled Project");
+    }
     setSaveProjectDialogOpen(true);
   }
 
+  async function refreshBackendProjectList(): Promise<void> {
+    if (!backendActor) {
+      setProjectStatus("Login with Google to load backend projects.");
+      return;
+    }
+    setBackendLoadLoading(true);
+    try {
+      const projects = await listBackendProjects(backendActor);
+      setBackendLoadProjects(projects);
+      setBackendLoadSelectedProjectId((current) => {
+        if (projects.length === 0) {
+          return "";
+        }
+        const stillExists = projects.some((project) => project.projectId === current);
+        return stillExists ? current : projects[0].projectId;
+      });
+      setProjectStatus(
+        projects.length > 0
+          ? `Found ${projects.length} backend project(s).`
+          : "No backend projects found."
+      );
+    } catch (error) {
+      setProjectStatus(
+        error instanceof Error ? error.message : "Failed to load backend project list."
+      );
+    } finally {
+      setBackendLoadLoading(false);
+    }
+  }
+
   function openLoadProjectPicker(): void {
+    if (backendActor) {
+      setBackendLoadDialogOpen(true);
+      void refreshBackendProjectList();
+      return;
+    }
     if (!loadProjectInputRef.current) {
       return;
     }
     loadProjectInputRef.current.value = "";
     loadProjectInputRef.current.click();
+  }
+
+  async function loadSelectedBackendProject(): Promise<void> {
+    if (!backendActor || !backendLoadSelectedProjectId) {
+      return;
+    }
+    setBackendLoadLoading(true);
+    try {
+      const project = await getBackendProject(backendActor, backendLoadSelectedProjectId);
+      const parsed = parseProjectState(JSON.stringify(project.payload));
+      applyLoadedProjectState(parsed);
+      setLoadedBackendProject({
+        projectId: project.projectId,
+        ownerUserId: project.ownerUserId,
+        version: project.version
+      });
+      setBackendLoadDialogOpen(false);
+      setProjectStatus(
+        project.ownerUserId === backendActor.userId
+          ? `Loaded your backend project "${project.name}".`
+          : `Loaded "${project.name}" (owner: ${project.ownerUserId}). You can only save a new copy as your own project.`
+      );
+    } catch (error) {
+      setProjectStatus(
+        error instanceof Error ? error.message : "Failed to load backend project."
+      );
+    } finally {
+      setBackendLoadLoading(false);
+    }
   }
 
   async function loadProjectFromFile(
@@ -872,16 +1067,8 @@ export function App() {
     try {
       const raw = await file.text();
       const parsed = parseProjectState(raw);
-      setSongs(parsed.songs);
-      setPlaylists(parsed.playlists);
-      setPanePlaylistIds(parsed.panePlaylistIds);
-      setPaneModes(parsed.paneModes);
-      setPaneSearchStates(parsed.panePlaylistIds.map(() => null));
-      setProjectName(parsed.projectName ?? "Untitled Project");
-      setSelectedSong(null);
-      setNewPlaylistDialogPaneIndex(null);
-      closeSpotifyImportDialog();
-      closeSpotifySearchDialog();
+      applyLoadedProjectState(parsed);
+      setLoadedBackendProject(null);
       setProjectStatus(
         `Loaded "${parsed.projectName ?? "Untitled Project"}" with ${parsed.playlists.length} playlist(s) into ${parsed.panePlaylistIds.length} pane(s).`
       );
@@ -991,8 +1178,19 @@ export function App() {
         isOpen={saveProjectDialogOpen}
         projectName={projectName}
         onProjectNameChange={setProjectName}
-        onSave={saveProjectToFile}
+        onSave={() => void (backendActor ? saveProjectToBackend() : saveProjectToFile())}
         onCancel={() => setSaveProjectDialogOpen(false)}
+      />
+      <BackendProjectLoadDialog
+        isOpen={backendLoadDialogOpen}
+        loading={backendLoadLoading}
+        projects={backendLoadProjects}
+        selectedProjectId={backendLoadSelectedProjectId}
+        currentUserId={backendActor?.userId ?? null}
+        onSelectedProjectIdChange={setBackendLoadSelectedProjectId}
+        onReload={() => void refreshBackendProjectList()}
+        onLoadSelected={() => void loadSelectedBackendProject()}
+        onCancel={() => setBackendLoadDialogOpen(false)}
       />
       <SpotifyImportDialog
         isOpen={spotifyImportDialogPaneIndex !== null}
