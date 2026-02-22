@@ -43,6 +43,9 @@ Keep this file guide up to date whenever files are added, removed, renamed, or r
 - `bin/cdk.ts`: CDK app entrypoint for frontend/backend stacks; now auto-loads `.env.local`/`.env` and avoids forcing unresolved account/region env values.
 - `backend/api-handler.mjs`: Backend API router for health, Google-token-backed session create/logout/probe (`/api/auth/google/session`, `/api/auth/logout`, `/api/me`), and backend project list/get/create/update with owner-only save enforcement.
 - `backend/local-api-server.mjs`: Node HTTP wrapper to run the backend API locally on `127.0.0.1:8787`; auto-loads `.env.local`/`.env` for consistent local env vars.
+- `INSTALL.md`: Step-by-step install/deploy runbook ordered from local-only startup through Spotify/Google integration and AWS CDK deployment.
+- `aws_deployer_role_template.json`: Placeholder IAM policy template for least-privilege deploy role/user access after CDK bootstrap.
+- `scripts/generate-aws-deployer-policy.mjs`: Interactive generator that fills `aws_deployer_role_template.json` placeholders with account/region/qualifier values and outputs paste-ready IAM policy JSON.
 
 ## Refactor Convention
 

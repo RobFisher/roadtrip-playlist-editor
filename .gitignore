@@ -6,4 +6,5 @@ dist/
 cdk.out/
 cdk.context.json
 .env.local
+aws_deployer_role_policy.generated.json
 

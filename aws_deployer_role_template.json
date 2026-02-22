@@ -1,0 +1,48 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AssumeCdkBootstrapRoles",
+      "Effect": "Allow",
+      "Action": "sts:AssumeRole",
+      "Resource": [
+        "arn:aws:iam::{{ACCOUNT_ID}}:role/cdk-{{CDK_QUALIFIER}}-deploy-role-{{ACCOUNT_ID}}-{{PRIMARY_REGION}}",
+        "arn:aws:iam::{{ACCOUNT_ID}}:role/cdk-{{CDK_QUALIFIER}}-file-publishing-role-{{ACCOUNT_ID}}-{{PRIMARY_REGION}}",
+        "arn:aws:iam::{{ACCOUNT_ID}}:role/cdk-{{CDK_QUALIFIER}}-lookup-role-{{ACCOUNT_ID}}-{{PRIMARY_REGION}}"
+      ]
+    },
+    {
+      "Sid": "ReadBootstrapVersionPrimaryRegion",
+      "Effect": "Allow",
+      "Action": "ssm:GetParameter",
+      "Resource": "arn:aws:ssm:{{PRIMARY_REGION}}:{{ACCOUNT_ID}}:parameter/cdk-bootstrap/{{CDK_QUALIFIER}}/version"
+    },
+    {
+      "Sid": "ReadBootstrapVersionUsEast1",
+      "Effect": "Allow",
+      "Action": "ssm:GetParameter",
+      "Resource": "arn:aws:ssm:us-east-1:{{ACCOUNT_ID}}:parameter/cdk-bootstrap/{{CDK_QUALIFIER}}/version"
+    },
+    {
+      "Sid": "ReadCloudFormationState",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:GetTemplate",
+        "cloudformation:ListStacks"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadBackendLambdaLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:FilterLogEvents",
+        "logs:GetLogEvents",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": "arn:aws:logs:{{PRIMARY_REGION}}:{{ACCOUNT_ID}}:log-group:/aws/lambda/{{BACKEND_LAMBDA_PREFIX}}*:*"
+    }
+  ]
+}
