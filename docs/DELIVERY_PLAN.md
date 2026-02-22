@@ -82,23 +82,7 @@ Exit criteria:
 
 Status: Complete.
 
-## Milestone 4: Shared Projects + Identity (Backend Start)
-
-Goal: multi-user collaboration with minimum PII.
-
-Tasks:
-
-1. Add Google OIDC sign-in for app identity.
-3. Store minimum information for user identity records.
-3. Persist projecs in DynamoDB.
-
-Exit criteria:
-
-- Two users can access same project by invite.
-- Unauthorized user cannot access project.
-- Data schema contains no user PII beyond email.
-
-## Milestone 5: Backend Project Storage + User Login
+## Milestone 4: Backend Project Storage + User Login
 
 Goal: move from local-only projects to account-backed persistence.
 
@@ -112,31 +96,5 @@ Tasks:
 Exit criteria:
 
 - User can sign in and save/open projects from backend storage.
-- Unauthorized access to another user's projects is blocked.
+- Users cannot overwrite others' projects.
 - Local file workflows continue to work.
-
-## Milestone 6: Real-time Collaboration
-
-Goal: multi-user concurrent editing with conflict safety.
-
-Tasks:
-
-1. Add near-real-time sync mechanism.
-2. Add optimistic UI updates with conflict detection/resolution.
-3. Add user-facing presence and conflict indicators.
-
-Exit criteria:
-
-- Two users can edit the same project and see updates quickly.
-- Conflicts are surfaced and resolved deterministically.
-- Playlist order and song membership remain consistent after concurrent edits.
-
-## Decision Gates
-
-Evaluate at the end of each milestone:
-
-1. Continue current scope.
-2. De-scope next milestone.
-3. Delay third-party integration and ship usable internal tool.
-
-Use this to keep momentum if auth/approvals block progress.

@@ -1,15 +1,14 @@
 # Rob's Road-trip Playlist Editor
 
-A local-first playlist workspace for comparing and editing multiple playlists at once.
+A playlist workspace for comparing and editing multiple playlists at once.
 The UI shows multiple playlist panes side by side so you can drag songs between playlists,
 reorder tracks within a playlist, and quickly shape alternatives before exporting.
 
 ![Roadtrip Playlist Editor screenshot](screenshot.png)
 
 Current status:
-- Milestones 0-3 are complete.
 - The app is useful now as a personal local editor with Spotify discovery/import/export.
-- AWS deployment is supported via CDK.
+- AWS deployment is supported via CDK; this adds cloud storage and sharing of projects.
 
 ## Installation and Deployment
 
