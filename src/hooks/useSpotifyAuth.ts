@@ -13,6 +13,35 @@ const SPOTIFY_AUTH_VERIFIER_KEY = "spotify_pkce_verifier";
 const SPOTIFY_ACCESS_TOKEN_KEY = "spotify_access_token";
 const SPOTIFY_ACCESS_TOKEN_EXPIRES_AT_KEY = "spotify_access_token_expires_at";
 
+function isLoopbackHostname(hostname: string): boolean {
+  const normalized = hostname.trim().toLowerCase();
+  return normalized === "localhost" || normalized === "127.0.0.1";
+}
+
+function resolveSpotifyRedirectUri(configuredRedirectUri?: string): string {
+  const currentPageRedirectUri = `${window.location.origin}${window.location.pathname}`;
+  const currentUrl = new URL(currentPageRedirectUri);
+  if (!isLoopbackHostname(currentUrl.hostname)) {
+    return currentPageRedirectUri;
+  }
+
+  const configured = configuredRedirectUri?.trim() ?? "";
+  if (!configured) {
+    return currentPageRedirectUri;
+  }
+
+  try {
+    const configuredUrl = new URL(configured);
+    // On loopback hosts, allow explicit override for local dev scenarios.
+    if (!isLoopbackHostname(configuredUrl.hostname)) {
+      return currentPageRedirectUri;
+    }
+    return configuredUrl.toString();
+  } catch {
+    return currentPageRedirectUri;
+  }
+}
+
 export interface UseSpotifyAuthResult {
   spotifyToken: string | null;
   spotifyAuthError: string | null;
@@ -28,9 +57,7 @@ export function useSpotifyAuth(): UseSpotifyAuthResult {
 
   const spotifyConfig: SpotifyAuthConfig = useMemo(() => {
     const clientId = import.meta.env.VITE_SPOTIFY_CLIENT_ID ?? "";
-    const redirectUri =
-      import.meta.env.VITE_SPOTIFY_REDIRECT_URI ??
-      `${window.location.origin}${window.location.pathname}`;
+    const redirectUri = resolveSpotifyRedirectUri(import.meta.env.VITE_SPOTIFY_REDIRECT_URI);
 
     return {
       clientId,

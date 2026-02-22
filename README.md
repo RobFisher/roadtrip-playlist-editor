@@ -78,7 +78,9 @@ This app uses Spotify Authorization Code flow with PKCE in the browser.
   - `VITE_SPOTIFY_CLIENT_ID`
 - Optional env var:
   - `VITE_SPOTIFY_REDIRECT_URI`
-    - default is current page URL (`window.location.origin + window.location.pathname`)
+    - used only on loopback local hosts (`127.0.0.1` / `localhost`)
+    - on non-local hosts (for example CloudFront), app always uses current page URL
+      (`window.location.origin + window.location.pathname`) as Spotify callback.
 
 For local development, create `.env.local`:
 
@@ -91,6 +93,8 @@ Important:
 - Add the same redirect URI to your Spotify app settings.
 - Use `127.0.0.1` (not `localhost`) for the redirect URI.
 - Do not put Spotify client secret in frontend code. PKCE flow here uses only client ID.
+- For deployed builds, `VITE_SPOTIFY_REDIRECT_URI` is not required because callback uses current page URL.
+  Add your deployed frontend URL (for example `https://d231ej2mp8aqcu.cloudfront.net/`) in Spotify app settings.
 
 ## Google Login Setup (Local + Deployed)
 
