@@ -98,3 +98,5 @@ Exit criteria:
 - User can sign in and save/open projects from backend storage.
 - Users cannot overwrite others' projects.
 - Local file workflows continue to work.
+
+Status: Complete.
