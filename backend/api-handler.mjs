@@ -174,6 +174,42 @@ function buildProjectDetails(project) {
   };
 }
 
+export async function listProjectSummariesFromDynamoScan(
+  dynamodbClient,
+  ScanCommand,
+  tableName
+) {
+  const projects = [];
+  let exclusiveStartKey = undefined;
+
+  do {
+    const response = await dynamodbClient.send(
+      new ScanCommand({
+        TableName: tableName,
+        FilterExpression: "itemType = :itemType",
+        ExpressionAttributeValues: {
+          ":itemType": "project"
+        },
+        ...(exclusiveStartKey ? { ExclusiveStartKey: exclusiveStartKey } : {})
+      })
+    );
+
+    for (const item of response.Items ?? []) {
+      projects.push({
+        projectId: String(item.projectId),
+        name: String(item.name),
+        ownerUserId: String(item.ownerUserId),
+        version: Number(item.version ?? 1),
+        updatedAt: String(item.updatedAt)
+      });
+    }
+
+    exclusiveStartKey = response.LastEvaluatedKey;
+  } while (exclusiveStartKey);
+
+  return projects;
+}
+
 function createInMemoryStore() {
   return {
     async listProjects() {
@@ -329,22 +365,11 @@ async function createDynamoStore() {
 
   return {
     async listProjects() {
-      const response = await dynamodbClient.send(
-        new ScanCommand({
-          TableName: tableName,
-          FilterExpression: "itemType = :itemType",
-          ExpressionAttributeValues: {
-            ":itemType": "project"
-          }
-        })
+      const items = await listProjectSummariesFromDynamoScan(
+        dynamodbClient,
+        ScanCommand,
+        tableName
       );
-      const items = (response.Items ?? []).map((item) => ({
-        projectId: String(item.projectId),
-        name: String(item.name),
-        ownerUserId: String(item.ownerUserId),
-        version: Number(item.version ?? 1),
-        updatedAt: String(item.updatedAt)
-      }));
       return items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
     },
 

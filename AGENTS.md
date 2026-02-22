@@ -20,6 +20,7 @@ Keep this file guide up to date whenever files are added, removed, renamed, or r
 - `src/spotify.ts`: Spotify API/auth helpers (PKCE URL + token exchange, profile/playlists/items fetch, playlist create/add-items, scope checks).
 - `src/google.ts`: Google Identity Services helpers (script load, OAuth token request, token revoke, and user profile fetch).
 - `src/backendApi.ts`: Backend API base-url helpers and typed client calls for backend session create/logout/probe plus backend project list/get/create/update.
+- `src/backendProjectSave.ts`: Pure helper for deciding whether backend save should update loaded project vs create a new project based on owner/name matching.
 - `src/app.css`: Global UI styles for workspace, panes, songs, and dialogs.
 - `src/components/GoogleDisplayNameDialog.tsx`: First-login modal for capturing app display name after Google sign-in.
 - `src/components/BackendProjectLoadDialog.tsx`: Modal for listing backend projects and loading selected project into the workspace.
@@ -36,6 +37,8 @@ Keep this file guide up to date whenever files are added, removed, renamed, or r
 - `src/hooks/usePaneDragDrop.ts`: Encapsulates pane/song drag-and-drop state and handlers (drag mode label, drop target, payload transfer, copy/move drop application).
 - `src/hooks/useSpotifyImport.ts`: Encapsulates Spotify playlist import workflow state/logic (dialog state, playlist loading, import action, status, dev curl debug generation).
 - `src/projectPersistence.test.ts`: Schema parser/serializer tests for project save/load compatibility and validation errors.
+- `src/backendProjectSave.test.ts`: Unit tests for backend save decision logic (update vs create).
+- `src/backendApiHandler.test.ts`: Unit tests for backend DynamoDB project-list pagination helper behavior.
 - `lib/backend-stack.ts`: CDK backend infrastructure skeleton (HTTP API, Lambda router, DynamoDB table + GSI, outputs).
 - `bin/cdk.ts`: CDK app entrypoint for frontend/backend stacks; now auto-loads `.env.local`/`.env` and avoids forcing unresolved account/region env values.
 - `backend/api-handler.mjs`: Backend API router for health, Google-token-backed session create/logout/probe (`/api/auth/google/session`, `/api/auth/logout`, `/api/me`), and backend project list/get/create/update with owner-only save enforcement.

@@ -25,6 +25,10 @@ import { usePaneDragDrop } from "./hooks/usePaneDragDrop.js";
 import { useGoogleAuth } from "./hooks/useGoogleAuth.js";
 import { useSpotifyImport } from "./hooks/useSpotifyImport.js";
 import {
+  shouldUpdateLoadedBackendProject,
+  type LoadedBackendProjectContext
+} from "./backendProjectSave.js";
+import {
   createBackendGoogleSession,
   createBackendProject,
   getApiBaseUrl,
@@ -56,12 +60,6 @@ interface PaneSearchState {
   query: string;
   nextOffset: number;
   total: number;
-}
-
-interface LoadedBackendProjectContext {
-  projectId: string;
-  ownerUserId: string;
-  version: number;
 }
 
 interface AuthDebugState {
@@ -1100,7 +1098,13 @@ export function App() {
         await runSessionDebugProbe();
       }
       let savedProject: BackendProject;
-      if (loadedBackendProject && loadedProjectOwnedByCurrentUser) {
+      if (
+        shouldUpdateLoadedBackendProject(
+          loadedBackendProject,
+          backendSessionUser.userId,
+          normalizedName
+        )
+      ) {
         savedProject = await updateBackendProject(
           loadedBackendProject.projectId,
           normalizedName,
@@ -1109,7 +1113,11 @@ export function App() {
         setProjectStatus(`Saved backend project "${savedProject.name}".`);
       } else {
         savedProject = await createBackendProject(normalizedName, payload);
-        if (loadedBackendProject && !loadedProjectOwnedByCurrentUser) {
+        if (loadedBackendProject && loadedProjectOwnedByCurrentUser) {
+          setProjectStatus(
+            `Created new backend project "${savedProject.name}" because the project name changed.`
+          );
+        } else if (loadedBackendProject && !loadedProjectOwnedByCurrentUser) {
           setProjectStatus(
             `Saved as a new project "${savedProject.name}" because only owners can update existing projects.`
           );
@@ -1121,6 +1129,7 @@ export function App() {
       setLoadedBackendProject({
         projectId: savedProject.projectId,
         ownerUserId: savedProject.ownerUserId,
+        name: savedProject.name,
         version: savedProject.version
       });
       setProjectName(savedProject.name);
@@ -1209,6 +1218,7 @@ export function App() {
       setLoadedBackendProject({
         projectId: project.projectId,
         ownerUserId: project.ownerUserId,
+        name: project.name,
         version: project.version
       });
       setBackendLoadDialogOpen(false);
