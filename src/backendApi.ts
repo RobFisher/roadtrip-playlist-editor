@@ -8,6 +8,7 @@ export interface BackendProject {
   projectId: string;
   name: string;
   ownerUserId: string;
+  ownerDisplayName: string;
   version: number;
   updatedAt: string;
   payload?: unknown;

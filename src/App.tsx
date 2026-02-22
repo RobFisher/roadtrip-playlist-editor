@@ -1106,7 +1106,7 @@ export function App() {
         )
       ) {
         savedProject = await updateBackendProject(
-          loadedBackendProject.projectId,
+          loadedBackendProject!.projectId,
           normalizedName,
           payload
         );
@@ -1225,7 +1225,7 @@ export function App() {
       setProjectStatus(
         project.ownerUserId === backendSessionUser.userId
           ? `Loaded your backend project "${project.name}".`
-          : `Loaded "${project.name}" (owner: ${project.ownerUserId}). You can only save a new copy as your own project.`
+          : `Loaded "${project.name}" (owner: ${project.ownerDisplayName || project.ownerUserId}). You can only save a new copy as your own project.`
       );
     } catch (error) {
       setProjectStatus(

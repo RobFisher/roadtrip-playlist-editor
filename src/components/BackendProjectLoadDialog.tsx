@@ -16,7 +16,7 @@ function formatOwner(project: BackendProject, currentUserId: string | null): str
   if (currentUserId && project.ownerUserId === currentUserId) {
     return "You";
   }
-  return project.ownerUserId;
+  return project.ownerDisplayName || project.ownerUserId;
 }
 
 export function BackendProjectLoadDialog({

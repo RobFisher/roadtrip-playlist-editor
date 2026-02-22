@@ -339,6 +339,18 @@ function createInMemoryStore() {
 
     async deleteSession(sessionId) {
       inMemorySessionsById.delete(sessionId);
+    },
+
+    async getUserById(userId) {
+      const user = inMemoryUsersById.get(String(userId));
+      if (!user) {
+        return null;
+      }
+      return {
+        userId: user.userId,
+        email: user.email,
+        displayName: user.displayName
+      };
     }
   };
 }
@@ -677,6 +689,27 @@ async function createDynamoStore() {
           }
         })
       );
+    },
+
+    async getUserById(userId) {
+      const response = await dynamodbClient.send(
+        new GetCommand({
+          TableName: tableName,
+          Key: {
+            pk: `${USER_PK_PREFIX}${String(userId)}`,
+            sk: USER_SK_PROFILE
+          }
+        })
+      );
+      const item = response.Item;
+      if (!item) {
+        return null;
+      }
+      return {
+        userId: String(item.userId),
+        email: String(item.email),
+        displayName: String(item.displayName)
+      };
     }
   };
 }
@@ -780,6 +813,36 @@ function requireActor(actor) {
     return json(401, { message: "Authentication required." });
   }
   return null;
+}
+
+async function withOwnerDisplayName(store, project) {
+  if (!project) {
+    return null;
+  }
+  const owner = await store.getUserById(project.ownerUserId);
+  return {
+    ...project,
+    ownerDisplayName: normalizeDisplayName(owner?.displayName) || project.ownerUserId
+  };
+}
+
+async function withOwnerDisplayNames(store, projects) {
+  const ownerDisplayNameByUserId = new Map();
+  return await Promise.all(
+    projects.map(async (project) => {
+      if (!ownerDisplayNameByUserId.has(project.ownerUserId)) {
+        const owner = await store.getUserById(project.ownerUserId);
+        ownerDisplayNameByUserId.set(
+          project.ownerUserId,
+          normalizeDisplayName(owner?.displayName) || project.ownerUserId
+        );
+      }
+      return {
+        ...project,
+        ownerDisplayName: ownerDisplayNameByUserId.get(project.ownerUserId)
+      };
+    })
+  );
 }
 
 export async function handler(event) {
@@ -928,7 +991,7 @@ export async function handler(event) {
         return unauthorized;
       }
       const projects = await store.listProjects();
-      return json(200, { projects });
+      return json(200, { projects: await withOwnerDisplayNames(store, projects) });
     }
 
     if (method === "POST" && path === "/api/projects") {
@@ -942,7 +1005,7 @@ export async function handler(event) {
         if (created.conflict) {
           return json(409, { message: "Project name is already in use." });
         }
-        return json(201, { project: created.project });
+        return json(201, { project: await withOwnerDisplayName(store, created.project) });
       } catch (error) {
         return json(400, {
           message: error instanceof Error ? error.message : "Invalid request."
@@ -959,7 +1022,7 @@ export async function handler(event) {
       if (!project) {
         return json(404, { message: "Project not found." });
       }
-      return json(200, { project });
+      return json(200, { project: await withOwnerDisplayName(store, project) });
     }
 
     if (projectId && method === "PUT") {
@@ -982,7 +1045,7 @@ export async function handler(event) {
         if (updated.conflict) {
           return json(409, { message: "Project name is already in use." });
         }
-        return json(200, { project: updated.project });
+        return json(200, { project: await withOwnerDisplayName(store, updated.project) });
       } catch (error) {
         return json(400, {
           message: error instanceof Error ? error.message : "Invalid request."

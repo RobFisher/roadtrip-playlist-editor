@@ -24,7 +24,8 @@ export function GoogleDisplayNameDialog({
       <div className="modal-card" role="dialog" aria-modal="true">
         <h2>Choose Display Name</h2>
         <p className="modal-support">
-          Signed in as <strong>{email}</strong>. Set a display name for this app profile.
+          Signed in as <strong>{email}</strong>. This display name is visible to other users
+          when they browse backend projects, and it cannot currently be changed.
         </p>
         <label>
           Display name
